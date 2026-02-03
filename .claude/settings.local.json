@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(chmod:*)",
+      "Bash(pip install:*)",
+      "Bash(pytest:*)",
+      "Bash(python3:*)",
+      "Bash(PYTHONPATH=/Users/weichong/Documents/working_area/llm/workflow-svc:$PYTHONPATH python3:*)",
+      "Bash(curl:*)",
+      "Bash(open http://localhost:8000)",
+      "Bash(tree:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
