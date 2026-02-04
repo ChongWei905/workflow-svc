@@ -216,7 +216,7 @@ def main():
 
     # 6. 交互模式
     if args.interactive:
-        print("\n🦞 Skill Executor (type 'quit' to exit)")
+        print("\n🦞 Skill Executor (type 'quit' to exit, 'reset' to clear context)")
         if config["security"]["audit_log"]:
             print(f"📝 Audit log: {config['security']['audit_log']}")
         while True:
@@ -224,10 +224,15 @@ def main():
                 query = input("\n> ").strip()
                 if query.lower() in ["quit", "exit", "q"]:
                     break
+                if query.lower() == "reset":
+                    executor.reset_conversation()
+                    print("✓ Conversation context cleared")
+                    continue
                 if not query:
                     continue
 
-                response = executor.execute(query, verbose=config["verbose"])
+                # 使用 remember_context=True 启用会话历史
+                response = executor.execute(query, verbose=config["verbose"], remember_context=True)
                 print(f"\n{response}")
             except KeyboardInterrupt:
                 print("\nBye!")
@@ -239,7 +244,8 @@ def main():
         parser.print_help()
         return 1
 
-    response = executor.execute(args.query, verbose=config["verbose"])
+    # 单次执行不需要记住上下文
+    response = executor.execute(args.query, verbose=config["verbose"], remember_context=False)
     print(f"\n{'=' * 50}\n{response}")
 
     return 0

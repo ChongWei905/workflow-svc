@@ -187,22 +187,22 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ```bash
 # 列出所有可用的 Skills
-python skill_executor.py --list --skills-dir ./skills
+python skill_executor_main.py --list --skills-dir ./skills
 
 # 执行单次查询
-python skill_executor.py "帮我创建一个名为 weather-tool 的 skill" \
+python skill_executor_main.py "帮我创建一个名为 weather-tool 的 skill" \
     --skills-dir ./skills
 
 # 交互模式
-python skill_executor.py -i --skills-dir ./skills
+python skill_executor_main.py -i --skills-dir ./skills
 
 # 使用 Claude
-python skill_executor.py "打包 my-skill" \
+python skill_executor_main.py "打包 my-skill" \
     --provider anthropic \
     --model claude-sonnet-4-20250514
 
 # 详细输出模式
-python skill_executor.py "验证 weather skill 是否正确" \
+python skill_executor_main.py "验证 weather skill 是否正确" \
     --verbose
 ```
 
@@ -256,7 +256,7 @@ make clean         # 清理测试文件
 ### 用例 1：创建新 Skill
 
 ```bash
-$ python skill_executor.py "创建一个新的 skill，名字叫 translator，用于翻译文本"
+$ python skill_executor_main.py "创建一个新的 skill，名字叫 translator，用于翻译文本"
 
 ✓ Loaded 45 skills
 
@@ -287,7 +287,7 @@ $ python skill_executor.py "创建一个新的 skill，名字叫 translator，�
 ### 用例 2：执行 PDF 处理
 
 ```bash
-$ python skill_executor.py "把 report.pdf 的前 5 页提取成图片"
+$ python skill_executor_main.py "把 report.pdf 的前 5 页提取成图片"
 
 ✓ Loaded 45 skills
 
@@ -312,7 +312,7 @@ PDF 转换完成！
 ### 用例 3：验证 Skill 结构
 
 ```bash
-$ python skill_executor.py "验证 my-skill 这个 skill 是否符合规范"
+$ python skill_executor_main.py "验证 my-skill 这个 skill 是否符合规范"
 
 ✓ Loaded 45 skills
 
@@ -369,7 +369,7 @@ $ python skill_executor.py "打包 weather 和 github 这两个 skills 到 ./dis
 ### 用例 5：交互式会话
 
 ```bash
-$ python skill_executor.py -i --skills-dir ./skills
+$ python skill_executor_main.py -i --skills-dir ./skills
 
 ✓ Loaded 45 skills
 

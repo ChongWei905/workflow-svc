@@ -17,32 +17,40 @@ class SkillExecutor:
         llm: LLMAdapter,
         skills: dict[str, Skill],
         security_config: SecurityConfig | None = None,
-        auditor = None
+        auditor=None
     ):
         self.llm = llm
         self.skills = skills
         self.tools = create_tools_definition(skills)
-        self.max_iterations = 10  # 防止无限循环
+        self.max_iterations = 100  # 防止无限循环
 
         # 安全配置
         self.security = security_config or SecurityConfig()
-        # 使用传入的 auditor，如果没有则创建新的
+        # 使用传入的 auditor,如果没有则创建新的
         self.auditor = auditor or Auditor(self.security)
 
-    def execute(self, user_query: str, verbose: bool = False) -> str:
+        # 会话历史 (用于交互模式)
+        self.conversation_history: list[dict] = []
+
+    def execute(self, user_query: str, verbose: bool = False, remember_context: bool = False) -> str:
         """
-        执行流程：
-        1. 构建包含 skills 元数据的上下文（Level 1: 仅 name/description）
-        2. 调用 LLM，允许工具调用
-        3. 如果 LLM 请求执行脚本，执行并返回结果
+        执行流程:
+        1. 构建包含 skills 元数据的上下文(Level 1: 仅 name/description)
+        2. 调用 LLM,允许工具调用
+        3. 如果 LLM 请求执行脚本,执行并返回结果
         4. 循环直到 LLM 给出最终答案
 
-        符合 Anthropic Agent Skills 渐进式披露规范：
+        Args:
+            user_query: 用户查询
+            verbose: 是否输出详细信息
+            remember_context: 是否记住对话上下文(用于交互模式)
+
+        符合 Anthropic Agent Skills 渐进式披露规范:
         - Level 1: 启动时仅加载 name/description
         - Level 2: 通过 read_skill_content 工具按需加载完整内容
-        - Level 3: 按需执行脚本，只返回输出不注入源码
+        - Level 3: 按需执行脚本,只返回输出不注入源码
         """
-        # Level 1: 仅加载元数据（name/description）
+        # Level 1: 仅加载元数据(name/description)
         skills_context = "\n".join([s.to_metadata_context() for s in self.skills.values()])
 
         # 检查是否有 skill-creator
@@ -79,21 +87,39 @@ When users ask you to DO something (not just explain), you MUST execute the appr
 6. NEVER just describe what would happen - ALWAYS execute the script to actually do it
 """
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_query}
-        ]
+        # 如果是记住上下文模式,使用会话历史
+        if remember_context:
+            # 如果是第一次对话,初始化系统提示
+            if not self.conversation_history:
+                self.conversation_history.append({"role": "system", "content": system_prompt})
+            # 添加新的用户消息
+            self.conversation_history.append({"role": "user", "content": user_query})
+            messages = self.conversation_history
+        else:
+            # 单次执行模式,创建新的消息列表
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_query}
+            ]
 
-        # 迭代执行，支持多轮工具调用
+        # 迭代执行,支持多轮工具调用
         for iteration in range(self.max_iterations):
             if verbose:
                 print(f"\n[Iteration {iteration + 1}]")
 
             response = self.llm.chat(messages, tools=self.tools)
 
-            # 如果没有工具调用，返回最终结果
+            # 如果没有工具调用,返回最终结果
             if "tool_calls" not in response or not response["tool_calls"]:
+                # 如果记住上下文,将 assistant 的回复加入历史
+                if remember_context and response["content"]:
+                    self.conversation_history.append({
+                        "role": "assistant",
+                        "content": response["content"]
+                    })
                 return response["content"]
+            else:
+                print(f"{response['content']}...")
 
             # 处理工具调用
             # 添加 assistant 消息
@@ -114,7 +140,8 @@ When users ask you to DO something (not just explain), you MUST execute the appr
             })
 
             # 执行每个工具调用
-            for tool_call in response["tool_calls"]:
+            tool_calls =  response["tool_calls"]
+            for tool_call in tool_calls:
                 tool_result = self._handle_tool_call(
                     tool_call["name"],
                     tool_call["arguments"],
@@ -128,6 +155,10 @@ When users ask you to DO something (not just explain), you MUST execute the appr
                 })
 
         return "Max iterations reached. Please try a simpler query."
+
+    def reset_conversation(self):
+        """重置会话历史"""
+        self.conversation_history = []
 
     def _get_missing_skill_instruction(self, has_skill_creator: bool) -> str:
         """生成缺少 skill 时的指引"""
