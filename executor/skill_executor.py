@@ -45,6 +45,9 @@ class SkillExecutor:
         # Level 1: 仅加载元数据（name/description）
         skills_context = "\n".join([s.to_metadata_context() for s in self.skills.values()])
 
+        # 检查是否有 skill-creator
+        has_skill_creator = "skill-creator" in self.skills
+
         system_prompt = f"""You are an AI assistant with access to skills and their scripts.
 
 ## Available Skills (Metadata)
@@ -63,6 +66,9 @@ When users ask you to DO something (not just explain), you MUST execute the appr
 - If user asks to check system info → execute check_resources, list_processes, or disk_usage script
 - If user asks about web/HTTP → execute http_request or check_url script
 - If user asks to create/delete files → execute appropriate script
+
+## What to do when NO MATCHING SKILL exists:
+{self._get_missing_skill_instruction(has_skill_creator)}
 
 ## Instructions
 1. When user asks to PERFORM AN ACTION, use execute_skill_script to run the appropriate script
@@ -122,6 +128,43 @@ When users ask you to DO something (not just explain), you MUST execute the appr
                 })
 
         return "Max iterations reached. Please try a simpler query."
+
+    def _get_missing_skill_instruction(self, has_skill_creator: bool) -> str:
+        """生成缺少 skill 时的指引"""
+        if has_skill_creator:
+            return """**If the user's request requires functionality that NONE of the available skills provide:**
+
+    1. **FIRST, explicitly tell the user** that no matching skill exists
+    2. **ASK the user** if they want you to create a new skill for this purpose
+    3. **If user agrees**, use the skill-creator to create a new skill:
+       - Use execute_skill_script with skill_name="skill-creator", script_name="init_skill"
+       - Pass appropriate arguments like skill name and description
+       - Example: execute_skill_script(skill_name="skill-creator", script_name="init_skill", arguments=["database-tools", "--description", "Tools for database operations"])
+    4. **Explain to the user** what they need to do next (edit SKILL.md, add scripts, etc.)
+
+    **Example conversation:**
+    User: "Check my PostgreSQL database connection"
+    You: "I don't have a skill for PostgreSQL operations yet. Would you like me to create a 'postgres-tools' skill for this purpose?"
+    User: "Yes"
+    You: [Execute skill-creator] "I've created the postgres-tools skill structure at ./skills/postgres-tools/. You'll need to add scripts for database connection checking."
+    """
+        else:
+            return """**If the user's request requires functionality that NONE of the available skills provide:**
+
+    1. **Tell the user** that no matching skill exists
+    2. **Explain** what kind of skill would be needed
+    3. **Suggest** that they can create a new skill manually or install the 'skill-creator' skill
+    4. **DO NOT** just give a theoretical answer - be honest that you cannot perform the action
+
+    **Example:**
+    User: "Check my PostgreSQL database connection"
+    You: "I don't have a skill for PostgreSQL operations. To perform this action, you would need to:
+    1. Create a new skill (e.g., 'postgres-tools')
+    2. Add a script that can connect to PostgreSQL
+    3. I can then execute it for you.
+
+    Note: Installing the 'skill-creator' skill would allow me to help you create new skills automatically."
+    """
 
     def _handle_tool_call(self, name: str, args: dict, verbose: bool = False) -> str:
         """处理工具调用"""
