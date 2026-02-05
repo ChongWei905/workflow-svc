@@ -264,8 +264,95 @@ When users ask you to DO something (not just explain), you MUST execute the appr
             # 读取脚本源代码
             return self._read_script(args["skill_name"], args["script_name"])
 
+        elif name.startswith("graph_"):
+            return self._handle_graph_tool(name, args, verbose)
+
         else:
             return f"Unknown tool: {name}"
+
+    def _handle_graph_tool(self, name: str, args: dict, verbose: bool = False) -> str:
+        """处理图数据库工具调用"""
+        if not self.graph_connector:
+            return "Error: Graph database not configured"
+
+        try:
+            if name == "graph_get_object_types":
+                result = self.graph_connector.get_object_types()
+                return json.dumps({"object_types": result}, ensure_ascii=False, indent=2)
+
+            elif name == "graph_get_object_relations":
+                result = self.graph_connector.get_object_relations()
+                return json.dumps({"relations": result}, ensure_ascii=False, indent=2)
+
+            elif name == "graph_get_entity_schema":
+                if "entity_type" not in args:
+                    return "Error: Missing required parameter 'entity_type'"
+                result = self.graph_connector.get_entity_schema(args["entity_type"])
+                return json.dumps(result, ensure_ascii=False, indent=2)
+
+            elif name == "graph_query_examples":
+                if "entity_type" not in args:
+                    return "Error: Missing required parameter 'entity_type'"
+                result = self.graph_connector.query_examples(
+                    args["entity_type"],
+                    args.get("limit", 5)
+                )
+                return json.dumps({"examples": result}, ensure_ascii=False, indent=2)
+
+            elif name == "graph_property_filter":
+                required = ["element_class", "element_type", "filter_dict"]
+                if not all(k in args for k in required):
+                    return f"Error: Missing required parameters: {required}"
+                result = self.graph_connector.property_filter(
+                    args["element_class"],
+                    args["element_type"],
+                    args["filter_dict"],
+                    args.get("get_all_properties", False)
+                )
+                return json.dumps({"results": result, "count": len(result)}, ensure_ascii=False, indent=2)
+
+            elif name == "graph_property_info":
+                required = ["element_class", "element_type", "element_uuid"]
+                if not all(k in args for k in required):
+                    return f"Error: Missing required parameters: {required}"
+                result = self.graph_connector.property_info_search(
+                    args["element_class"],
+                    args["element_type"],
+                    args["element_uuid"]
+                )
+                return json.dumps(result, ensure_ascii=False, indent=2)
+
+            elif name == "graph_hop_search":
+                if "uuid" not in args or "hop_num" not in args:
+                    return "Error: Missing required parameters 'uuid' or 'hop_num'"
+                result = self.graph_connector.hop_search(
+                    args["uuid"],
+                    args["hop_num"],
+                    args.get("accurate_flag", False)
+                )
+                return json.dumps({"paths": result, "count": len(result)}, ensure_ascii=False, indent=2)
+
+            elif name == "graph_count_search":
+                required = ["element_class", "element_type", "filter_dict"]
+                if not all(k in args for k in required):
+                    return f"Error: Missing required parameters: {required}"
+                result = self.graph_connector.count_search(
+                    args["element_class"],
+                    args["element_type"],
+                    args["filter_dict"]
+                )
+                return json.dumps({"count": result}, ensure_ascii=False, indent=2)
+
+            else:
+                return f"Unknown graph tool: {name}"
+
+        except Exception as e:
+            error_msg = f"Graph query error: {str(e)}"
+            if verbose:
+                print(f"  ❌ {error_msg}")
+                import traceback
+                traceback.print_exc()
+            return error_msg
 
     def _read_skill_content(self, skill_name: str) -> str:
         """Level 2: 读取完整 skill 内容（按需加载）"""
