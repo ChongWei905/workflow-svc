@@ -105,6 +105,21 @@ You have access to a graph database with the following tools:
 {skills_context}
 {graph_db_instruction}
 
+## ⚠️ CRITICAL: SKILL.md Format Requirements
+
+When creating a new skill, the SKILL.md file MUST start with YAML frontmatter:
+```markdown
+---
+name: skill-name
+description: Brief description (max 1024 chars)
+---
+
+# Skill Name
+
+## Overview
+...
+```
+
 ## Progressive Disclosure
 Skills are loaded progressively to optimize context:
 1. Use `read_skill_content` tool to read the full SKILL.md when needed (Level 2)

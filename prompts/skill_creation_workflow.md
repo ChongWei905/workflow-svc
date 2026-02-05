@@ -117,6 +117,25 @@ Step 3: [Description]
 You MUST create:
 
 1. **SKILL.md** with complete documentation
+   
+   ⚠️ **CRITICAL: SKILL.md MUST start with YAML frontmatter:**
+   ```markdown
+   ---
+   name: skill-name
+   description: Brief description (max 1024 chars)
+   ---
+   
+   # Skill Name
+   
+   ## Overview
+   ...
+   ```
+   
+   **Frontmatter Requirements:**
+   - `name`: lowercase letters, numbers, hyphens only, max 64 chars
+   - `description`: cannot be empty, max 1024 chars
+   - NO XML tags (`<` or `>`) allowed
+   - NO reserved words (anthropic, claude)
 2. **Fully functional scripts** in the `scripts/` directory with:
    - ✅ Real database connections (if applicable)
    - ✅ Real API calls (if applicable)  
