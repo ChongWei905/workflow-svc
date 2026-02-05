@@ -9,6 +9,8 @@
 - **Ask the user** if they want you to create a new skill for this purpose
 - Wait for user confirmation before proceeding
 
+**STOP HERE. Wait for user's response.**
+
 ### Step 2: Gather Reference Documentation (If Available)
 **Ask the user:**
 "Do you have any reference documentation that could help guide the skill creation? For example:
@@ -19,6 +21,8 @@
 - Business requirement documents
 
 If you have any of these, please provide the file path or paste the content."
+
+**STOP HERE. Wait for user's response.**
 
 **If user provides documentation:**
 - Use `file-operations` skill to read the file if a path is provided
