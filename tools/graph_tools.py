@@ -7,12 +7,18 @@ def create_graph_tools() -> list[dict]:
     Returns:
         工具定义列表,符合 OpenAI Function Calling 格式
     """
+    # 添加使用警告
+    usage_warning = (
+        "IMPORTANT: When creating a new skill, you MUST follow the skill creation workflow steps. "
+        "DO NOT call this tool until Step 3 (after asking user for documentation). "
+    )
+
     return [
         {
             "type": "function",
             "function": {
                 "name": "graph_get_object_types",
-                "description": "Get all object types (node types and edge types) defined in the graph database. Use this to discover available entity types.",
+                "description": usage_warning + "Get all object types (node types and edge types) defined in the graph database. Use this to discover available entity types.",
                 "parameters": {
                     "type": "object",
                     "properties": {},
@@ -24,7 +30,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_get_object_relations",
-                "description": "Get all object relationships in the graph database. Returns relationships in format '<StartType>-<RelationType>-<EndType>'.",
+                "description": usage_warning + "Get all object relationships in the graph database. Returns relationships in format '<StartType>-<RelationType>-<EndType>'.",
                 "parameters": {
                     "type": "object",
                     "properties": {},
@@ -36,7 +42,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_get_entity_schema",
-                "description": "Get schema information for a specific entity type, including sample properties and their types. Use this before creating skills that work with specific entities.",
+                "description": usage_warning + "Get schema information for a specific entity type, including sample properties and their types. Use this before creating skills that work with specific entities.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -53,7 +59,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_query_examples",
-                "description": "Query example instances of a specific entity type. Useful for understanding actual data structure and values.",
+                "description": usage_warning + "Query example instances of a specific entity type. Useful for understanding actual data structure and values.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -75,7 +81,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_property_filter",
-                "description": "Filter graph elements by property conditions. Supports Cypher-style comparisons like '> 10000', 'CONTAINS \\'text\\''.",
+                "description": usage_warning + "Filter graph elements by property conditions. Supports Cypher-style comparisons like '> 10000', 'CONTAINS \\'text\\''.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -107,7 +113,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_property_info",
-                "description": "Get detailed property information for a specific graph element by its UUID.",
+                "description": usage_warning + "Get detailed property information for a specific graph element by its UUID.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -133,7 +139,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_hop_search",
-                "description": "Search for multi-hop paths from a starting node. Use this to discover relationships and connected entities.",
+                "description": usage_warning + "Search for multi-hop paths from a starting node. Use this to discover relationships and connected entities.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -160,7 +166,7 @@ def create_graph_tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "graph_count_search",
-                "description": "Count the number of graph elements matching the filter conditions.",
+                "description": usage_warning + "Count the number of graph elements matching the filter conditions.",
                 "parameters": {
                     "type": "object",
                     "properties": {
