@@ -265,8 +265,17 @@ def init_skill(skill_name, path, resources, include_examples):
     Returns:
         Path to created skill directory, or None if error
     """
+    # 解析路径为绝对路径
+    path_obj = Path(path)
+
+    # 如果是相对路径,相对于当前工作目录(项目根目录)解析
+    if not path_obj.is_absolute():
+        # 获取当前工作目录(应该是项目根目录)
+        cwd = Path.cwd()
+        path_obj = (cwd / path).resolve()
+
     # Determine skill directory path
-    skill_dir = Path(path).resolve() / skill_name
+    skill_dir = path_obj / skill_name
 
     # Check if directory already exists
     if skill_dir.exists():
