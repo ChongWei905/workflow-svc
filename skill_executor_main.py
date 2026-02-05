@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 import yaml
 
+from connectors import GraphConnector
 from loaders import SkillLoader
 from llm import create_llm
 from executor import SkillExecutor, SecurityConfig, Auditor, AuditLevel
@@ -68,6 +69,12 @@ def load_config(config_file: str | None = None) -> dict:
         "provider": "openai",
         "model": None,
         "verbose": False,
+        "graph_database": {  # 新增
+            "enabled": False,
+            "base_url": "http://localhost:8080",
+            "timeout": 30,
+            "cache_enabled": True
+        },
         "security": {
             "audit_log": None,
             "audit_level": "basic",
@@ -198,6 +205,22 @@ def main():
             print(f"  • {name}: {desc} [{scripts_count} scripts]")
         return 0
 
+    # 4. 初始化图数据库连接器(新增)
+    graph_connector = None
+    graph_config = config.get("graph_database", {})
+
+    if graph_config.get("enabled"):
+        try:
+            graph_connector = GraphConnector(
+                base_url=graph_config["base_url"],
+                timeout=graph_config.get("timeout", 30),
+                cache_enabled=graph_config.get("cache_enabled", True)
+            )
+            print(f"✓ Connected to graph database at {graph_config['base_url']}")
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to connect to graph database: {e}")
+            print("   Continuing without graph features...")
+
     # 4. 创建 LLM 适配器 (LLM 层)
     llm_kwargs = {}
     if config["model"]:
@@ -212,7 +235,7 @@ def main():
         return 1
 
     # 5. 创建执行器 (Executor 层) - 带安全配置
-    executor = SkillExecutor(llm, skills, security_config=security_config)
+    executor = SkillExecutor(llm, skills, security_config=security_config, graph_connector=graph_connector)
 
     # 6. 交互模式
     if args.interactive:

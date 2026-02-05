@@ -5,7 +5,7 @@ import time
 
 from llm import LLMAdapter
 from models import Skill
-from tools import create_tools_definition
+from tools import create_tools_definition, create_graph_tools
 from .security import SecurityConfig, Auditor
 
 
@@ -17,19 +17,25 @@ class SkillExecutor:
         llm: LLMAdapter,
         skills: dict[str, Skill],
         security_config: SecurityConfig | None = None,
-        auditor=None
+        auditor=None,
+        graph_connector=None  # 新增:图数据库连接器
     ):
         self.llm = llm
         self.skills = skills
-        self.tools = create_tools_definition(skills)
-        self.max_iterations = 100  # 防止无限循环
+        self.graph_connector = graph_connector  # 存储图连接器
+
+        # 合并 skill 工具和图数据库工具
+        skill_tools = create_tools_definition(skills)
+        graph_tools = create_graph_tools() if graph_connector else []
+        self.tools = skill_tools + graph_tools
+
+        self.max_iterations = 10  # 防止无限循环
 
         # 安全配置
         self.security = security_config or SecurityConfig()
-        # 使用传入的 auditor,如果没有则创建新的
         self.auditor = auditor or Auditor(self.security)
 
-        # 会话历史 (用于交互模式)
+        # 会话历史
         self.conversation_history: list[dict] = []
 
     def execute(self, user_query: str, verbose: bool = False, remember_context: bool = False) -> str:
@@ -55,11 +61,47 @@ class SkillExecutor:
 
         # 检查是否有 skill-creator
         has_skill_creator = "skill-creator" in self.skills
+        has_graph_db = self.graph_connector is not None
+
+        # 构建图数据库说明
+        graph_db_instruction = ""
+        if has_graph_db:
+            graph_db_instruction = """
+
+## Graph Database Access
+
+You have access to a graph database with the following tools:
+
+**Discovery Tools:**
+- `graph_get_object_types()`: Get all entity types (nodes) and relationship types
+- `graph_get_object_relations()`: Get all relationship patterns
+- `graph_get_entity_schema(entity_type)`: Get schema for a specific entity type
+- `graph_query_examples(entity_type, limit)`: Get example instances
+
+**Query Tools:**
+- `graph_property_filter(...)`: Filter entities by properties
+- `graph_property_info(...)`: Get detailed info for a specific entity
+- `graph_hop_search(...)`: Find multi-hop relationships
+- `graph_count_search(...)`: Count matching entities
+
+**When to Use Graph Database:**
+1. **Creating new skills**: Query schema and examples to understand data structure
+2. **Executing skills**: Use graph queries to fetch real data
+3. **Understanding relationships**: Use hop_search to discover connections
+4. **Data validation**: Query examples to ensure correct data format
+
+**Best Practices:**
+- ALWAYS query schema before working with a new entity type
+- Use examples to understand actual data values
+- Start with simple queries, then add filters as needed
+- Use count_search to understand data volume before fetching all results
+"""
 
         system_prompt = f"""You are an AI assistant with access to skills and their scripts.
 
 ## Available Skills (Metadata)
 {skills_context}
+{graph_db_instruction}
 
 ## Progressive Disclosure
 Skills are loaded progressively to optimize context:
