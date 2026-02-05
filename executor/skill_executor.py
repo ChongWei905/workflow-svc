@@ -6,6 +6,7 @@ import time
 from llm import LLMAdapter
 from models import Skill
 from tools import create_tools_definition, create_graph_tools
+from prompts import load_prompt, SKILL_CREATION_WORKFLOW
 from .security import SecurityConfig, Auditor
 
 
@@ -205,22 +206,7 @@ When users ask you to DO something (not just explain), you MUST execute the appr
     def _get_missing_skill_instruction(self, has_skill_creator: bool) -> str:
         """生成缺少 skill 时的指引"""
         if has_skill_creator:
-            return """**If the user's request requires functionality that NONE of the available skills provide:**
-
-    1. **FIRST, explicitly tell the user** that no matching skill exists
-    2. **ASK the user** if they want you to create a new skill for this purpose
-    3. **If user agrees**, use the skill-creator to create a new skill:
-       - Use execute_skill_script with skill_name="skill-creator", script_name="init_skill"
-       - Pass appropriate arguments like skill name and description
-       - Example: execute_skill_script(skill_name="skill-creator", script_name="init_skill", arguments=["database-tools", "--description", "Tools for database operations"])
-    4. **Explain to the user** what they need to do next (edit SKILL.md, add scripts, etc.)
-
-    **Example conversation:**
-    User: "Check my PostgreSQL database connection"
-    You: "I don't have a skill for PostgreSQL operations yet. Would you like me to create a 'postgres-tools' skill for this purpose?"
-    User: "Yes"
-    You: [Execute skill-creator] "I've created the postgres-tools skill structure at ./skills/postgres-tools/. You'll need to add scripts for database connection checking."
-    """
+            return load_prompt(SKILL_CREATION_WORKFLOW)
         else:
             return """**If the user's request requires functionality that NONE of the available skills provide:**
 
