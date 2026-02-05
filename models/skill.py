@@ -38,10 +38,22 @@ class SkillScript:
         if env:
             run_env.update(env)
 
+        # 新增：如果没有指定 cwd，使用项目根目录
+        if cwd is None:
+            # 从脚本路径推断项目根目录：scripts/ -> skill/ -> skills/ -> project-root/
+            project_root = self.path.parent.parent.parent
+
+            # 验证是否是合理的项目根目录（应该包含 skills 文件夹）
+            if project_root.exists() and (project_root / "skills").exists():
+                cwd = project_root
+            else:
+                # 如果推断失败，回退到当前工作目录
+                cwd = Path.cwd()
+
         try:
             result = subprocess.run(
                 cmd,
-                cwd=cwd or self.path.parent,
+                cwd=cwd,  # 使用推断出的项目根目录或传入的 cwd
                 env=run_env,
                 capture_output=True,
                 text=True,
