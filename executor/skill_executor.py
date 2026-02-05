@@ -2,6 +2,7 @@
 
 import json
 import time
+from pathlib import Path
 
 from llm import LLMAdapter
 from models import Skill
@@ -250,11 +251,53 @@ When users ask you to DO something (not just explain), you MUST execute the appr
             # 读取脚本源代码
             return self._read_script(args["skill_name"], args["script_name"])
 
+        elif name == "write_file":
+            # 新增: 处理文件写入
+            return self._write_file(
+                args["filepath"],
+                args["content"],
+                args.get("create_dirs", True),
+                verbose
+            )
+
         elif name.startswith("graph_"):
             return self._handle_graph_tool(name, args, verbose)
 
         else:
             return f"Unknown tool: {name}"
+
+    def _write_file(self, filepath: str, content: str, create_dirs: bool, verbose: bool) -> str:
+        """写入文件内容"""
+        try:
+            file_path = Path(filepath)
+
+            # 安全检查：不允许写入项目外的文件
+            project_root = Path.cwd()
+            try:
+                file_path.resolve().relative_to(project_root.resolve())
+            except ValueError:
+                return f"Error: Cannot write file outside project directory: {filepath}"
+
+            # 创建父目录
+            if create_dirs:
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # 写入内容
+            file_path.write_text(content, encoding='utf-8')
+
+            if verbose:
+                print(f"  Written {len(content)} bytes to {file_path}")
+
+            # 审计日志
+            self.auditor.log_file_write(
+                file_path=file_path,
+                file_size=len(content.encode('utf-8'))
+            )
+
+            return f"Success: File written to {file_path} ({len(content)} characters)"
+
+        except Exception as e:
+            return f"Error writing file: {e}"
 
     def _handle_graph_tool(self, name: str, args: dict, verbose: bool = False) -> str:
         """处理图数据库工具调用"""

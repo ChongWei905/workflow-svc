@@ -196,6 +196,20 @@ class Auditor:
             )
             self._log_event(event)
 
+    def log_file_write(self, file_path: Path, file_size: int, skill_name: str | None = None):
+        """记录文件写入"""
+        if self.config.audit_level == AuditLevel.NONE:
+            return
+
+        event = AuditEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="file_write",
+            skill_name=skill_name,
+            file_path=str(file_path),
+            metadata={"file_size": file_size}
+        )
+        self._log_event(event)
+
     def log_access_denied(self, resource_type: str, resource_name: str, reason: str):
         """记录访问拒绝"""
         if self.config.audit_level == AuditLevel.NONE:
