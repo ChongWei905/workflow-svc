@@ -198,11 +198,62 @@ When users ask you to DO something (not just explain), you MUST execute the appr
                     "content": tool_result
                 })
 
+                # 清理刚添加的 assistant 消息中的大文件内容
+                # 这样下次发送给 LLM 时，不会包含完整文件内容
+                self._truncate_large_content_in_last_assistant_message(verbose, messages)
+
         return "Max iterations reached. Please try a simpler query."
 
     def reset_conversation(self):
         """重置会话历史"""
         self.conversation_history = []
+
+    def _truncate_large_content_in_last_assistant_message(self, verbose, messages: list[dict], max_content_size: int = 500):
+        """
+        清理最近添加的 assistant 消息中 write_file 工具的大内容
+
+        这样可以避免在下一次 LLM 调用时重复发送已写入的文件内容，
+        同时保留工具调用的元信息（文件路径等）
+
+        Args:
+            messages: 消息列表
+            max_content_size: 保留内容的最大字符数
+        """
+        # 找到最后一条 assistant 消息
+        for i in range(len(messages) - 1, -1, -1):
+            msg = messages[i]
+            if msg["role"] == "assistant" and "tool_calls" in msg:
+                # 遍历该消息中的所有工具调用
+                for tool_call in msg["tool_calls"]:
+                    if tool_call["type"] == "function" and tool_call["function"]["name"] == "write_file":
+                        try:
+                            # 解析参数
+                            args = json.loads(tool_call["function"]["arguments"])
+
+                            # 如果 content 字段存在且过大，进行截断
+                            if "content" in args:
+                                original_content = args["content"]
+                                content_length = len(original_content)
+
+                                if content_length > max_content_size:
+                                    # 保留前面一部分 + 摘要信息
+                                    truncated_content = original_content[:max_content_size]
+                                    args[
+                                        "content"] = f"{truncated_content}\n\n... (truncated {content_length - max_content_size} chars) ..."
+
+                                    # 更新 arguments
+                                    tool_call["function"]["arguments"] = json.dumps(args, ensure_ascii=False)
+
+                                    if verbose:
+                                        print(
+                                            f"  [Cleanup] Truncated write_file content: {content_length} -> {len(args['content'])} chars")
+
+                        except json.JSONDecodeError:
+                            # 如果解析失败，跳过
+                            continue
+
+                # 只处理最后一条 assistant 消息
+                break
 
     def _get_missing_skill_instruction(self, has_skill_creator: bool) -> str:
         """生成缺少 skill 时的指引"""
