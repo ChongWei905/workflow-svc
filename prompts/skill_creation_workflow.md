@@ -99,72 +99,174 @@ Step 3: [Description]
 
 **WAIT for user's explicit approval before Step 5**
 
-### Step 5: Create the Skill (Only After User Approval)
-**If user approves the execution flow:**
+您说得对！我不应该全部重写，应该只修改原有工作流程中的 **Step 5**，让它生成完整的 skill 包。
 
-1. **Create the skill structure:**
-   ```
-   Call execute_skill_script(
-       skill_name="skill-creator",
-       script_name="init_skill",
-       arguments=["skill-name", "--description", "Detailed description based on analysis"]
-   )
-   ```
+让我先查看当前的工作流程文件：让我尝试直接列出 prompts 目录:非常抱歉理解错了!您是对的,我应该只修改原文的 **Step 5**,保留前面的流程。让我先查看当前的 workflow 文件:
 
-2. **Inform the user about next steps:**
-   ```
-   ✅ Skill structure created at ./skills/[skill-name]/
+由于无法直接读取文件,让我基于您提供的上下文信息,给出正确的修改方案。您只需要修改 `prompts/skill_creation_workflow.md` 文件中的 **Step 5** 部分:
 
-   📝 Based on the execution flow, you should now:
 
-   1. Edit SKILL.md to include:
-      - Detailed description of the workflow
-      - Graph entity documentation:
-        * [Entity1]: [properties and their meanings]
-        * [Entity2]: [properties and their meanings]
-      - Relationship patterns used
-      - Example queries and expected results
+### **Step 5: Create Complete Skill Package**
 
-   2. Create scripts in scripts/ folder:
-      - main_workflow.py: Implement the execution flow
-        * Import graph query functions
-        * Follow the step-by-step plan above
-        * Handle errors appropriately
-      
-      Example script structure:
-      ```python
-      # Import graph connector utilities
-      from graph_utils import query_entity, filter_entities
-      
-      def execute():
-          # Step 1: Query [Entity1]
-          entities = filter_entities(
-              element_class="[Entity1]",
-              filter_dict={"field": "value"}
-          )
-          
-          # Step 2: Get details for each entity
-          for entity in entities:
-              details = query_entity(
-                  element_class="[Entity1]",
-                  element_uuid=entity["uuid"]
-              )
-              # Process details...
-          
-          # Step 3: Return results
-          return results
-      ```
+**IMPORTANT: Create a PRODUCTION-READY skill, NOT a template!**
 
-   3. Add reference documentation to references/ folder:
-      - entity_schemas.md: Document all entity schemas discovered
-      - execution_flow.md: The approved execution flow
-      - [Any user-provided documentation]
+You MUST create:
 
-   4. Test the skill:
-      - Run the scripts with sample data
-      - Verify graph queries return expected results
-      - Check error handling
-   ```
+1. **SKILL.md** with complete documentation
+2. **Fully functional scripts** in the `scripts/` directory with:
+   - ✅ Real database connections (if applicable)
+   - ✅ Real API calls (if applicable)  
+   - ✅ Actual business logic
+   - ✅ Error handling and logging
+   - ✅ Command-line argument support
+   - ❌ NO mock data
+   - ❌ NO placeholders like "YOUR_API_KEY"
+   - ❌ NO TODO comments
+
+#### **For Database Skills:**
+```
+python
+# GOOD: Real database connection
+import psycopg2
+import sys
+
+try:
+    conn = psycopg2.connect(
+        host=sys.argv[1],
+        database=sys.argv[2],
+        user=sys.argv[3],
+        password=sys.argv[4]
+    )
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users LIMIT 10")
+    results = cursor.fetchall()
+    print(json.dumps(results, default=str))
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+```
+
+```
+python
+# BAD: Mock data (DO NOT DO THIS!)
+mock_data = [{"id": 1, "name": "test"}]
+print(json.dumps(mock_data))
+```
+#### **For Graph Database Skills:**
+
+If `graph_connector` is available, use graph tools to query real data:
+
+```python
+# Query graph database for schema
+import requests
+import json
+import sys
+
+BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+
+# Get real object types
+response = requests.get(f"{BASE_URL}/get_object_types")
+if response.status_code == 200:
+    data = response.json()
+    print(json.dumps(data["result"], indent=2))
+else:
+    print(f"Error: {response.status_code}", file=sys.stderr)
+    sys.exit(1)
+```
+```
+
+
+#### **For API Integration Skills:**
+
+```python
+# Real API call with error handling
+import requests
+import sys
+import json
+
+def fetch_weather(city: str, api_key: str):
+    url = f"https://api.openweathermap.org/data/2.5/weather"
+    params = {"q": city, "appid": api_key}
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching weather: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python weather_query.py <city> <api_key>")
+        sys.exit(1)
+    
+    city = sys.argv[1]
+    api_key = sys.argv[2]
+    data = fetch_weather(city, api_key)
+    print(json.dumps(data, indent=2))
+```
+
+
+#### **Script Requirements Checklist:**
+
+- [ ] Accepts command-line arguments
+- [ ] Includes error handling (try-catch blocks)
+- [ ] Returns actual data from real sources
+- [ ] Has meaningful error messages
+- [ ] Exits with proper exit codes (0 = success, 1 = error)
+- [ ] Includes docstrings and comments
+- [ ] Uses only available Python packages (see installed packages list)
+
+#### **File Structure to Create:**
+
+```
+skills/
+└── <skill-name>/
+    ├── SKILL.md                    # Complete documentation
+    └── scripts/
+        ├── <main_script>.py        # Primary functionality
+        ├── <helper_script>.py      # Additional features (if needed)
+        └── README.md               # Script usage guide (optional)
+```
+
+
+#### **After Creating the Skill:**
+
+1. **Verify** all files are created
+2. **Test** the scripts immediately with sample inputs
+3. **Report** success or failure to the user
+4. **DO NOT** ask the user to manually edit files
+5. **DO NOT** leave TODO items for the user
+
+#### **Example: Complete PostgreSQL Skill Creation**
+
+**User:** "Create a skill to query my PostgreSQL database"
+
+**Your Response:**
+1. Ask: "Please provide connection details (host, port, database, user, password)"
+2. User provides: "localhost, 5432, mydb, admin, secret123"
+3. Create complete skill with:
+   - `skills/postgres-query/SKILL.md`
+   - `skills/postgres-query/scripts/query_table.py` (with real psycopg2 connection)
+   - `skills/postgres-query/scripts/list_tables.py`
+4. Test: Run `query_table.py` to verify connection works
+5. Report: "✓ PostgreSQL skill created and tested successfully!"
+
+**Example: Complete Graph Database Skill**
+
+**User:** "Create a skill to query organizational hierarchy from the graph database"
+
+**Your Response:**
+1. Use graph tools to discover schema:
+   - Call `graph_get_object_types()` to see "Organ" exists
+   - Call `graph_query_examples("Organ", 2)` to understand data structure
+2. Create complete skill with:
+   - `skills/org-hierarchy/SKILL.md`
+   - `skills/org-hierarchy/scripts/query_org.py` (real HTTP requests to graph API)
+   - `skills/org-hierarchy/scripts/get_hierarchy.py` (uses hop_search)
+3. Test the scripts with real queries
+4. Report: "✓ Organization hierarchy skill created successfully!"
 
 ### Step 6: Execution-Time Graph Queries (When Running the Skill)
 **When the skill is executed later, it MUST:**
