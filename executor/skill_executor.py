@@ -99,10 +99,16 @@ You have access to a graph database with the following tools:
 - `graph_count_search(...)`: Count matching entities
 
 **When to Use Graph Database:**
-1. **Creating new skills**: Query schema and examples to understand data structure
-2. **Executing skills**: Use graph queries to fetch real data
-3. **Understanding relationships**: Use hop_search to discover connections
-4. **Data validation**: Query examples to ensure correct data format
+1. **Before creating new skills**: Query schema and examples to understand data structure
+2. **ONLY when skills explicitly need graph data**: If a skill's script requires graph information as input
+3. **NOT after skill execution**: Skills should be self-contained; only use graph queries if the skill output explicitly indicates missing data
+
+**IMPORTANT: Skills are self-contained**
+- Skills should produce complete results without requiring additional graph queries
+- Only query the graph database if:
+  a) You're creating a new skill and need to understand the data model
+  b) The skill's output explicitly says "query graph database for X"
+  c) The user's original question explicitly asks for graph data
 
 **Best Practices:**
 - ALWAYS query schema before working with a new entity type
