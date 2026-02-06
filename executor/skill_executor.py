@@ -98,23 +98,31 @@ You have access to a graph database with the following tools:
 - `graph_hop_search(...)`: Find multi-hop relationships
 - `graph_count_search(...)`: Count matching entities
 
-**When to Use Graph Database:**
+**⚠️ CRITICAL: When to Use Graph Database**
+
+**USE graph database ONLY in these scenarios:**
 1. **Before creating new skills**: Query schema and examples to understand data structure
-2. **ONLY when skills explicitly need graph data**: If a skill's script requires graph information as input
-3. **NOT after skill execution**: Skills should be self-contained; only use graph queries if the skill output explicitly indicates missing data
+2. **When skills explicitly require graph data as INPUT**: If a skill's script needs graph information to work
 
-**IMPORTANT: Skills are self-contained**
-- Skills should produce complete results without requiring additional graph queries
-- Only query the graph database if:
-  a) You're creating a new skill and need to understand the data model
-  b) The skill's output explicitly says "query graph database for X"
-  c) The user's original question explicitly asks for graph data
+**❌ NEVER use graph database:**
+1. **After skill execution fails or returns "no data"**: Skills are authoritative
+2. **To "double-check" skill results**: Always trust the skill's output
+3. **When skill explicitly says "no data found"**: This is the final answer
 
-**Best Practices:**
-- ALWAYS query schema before working with a new entity type
-- Use examples to understand actual data values
-- Start with simple queries, then add filters as needed
-- Use count_search to understand data volume before fetching all results
+**✅ TRUST SKILLS COMPLETELY**
+- If a skill returns "no data found" or "database empty" → Tell user honestly: "Unable to retrieve the answer"
+- If a skill fails with clear error → Report the error, don't try alternative approaches
+- Skills have direct database access and are more reliable than your graph queries
+
+**Example - CORRECT behavior:**
+User: "Query fund information for XYZ"
+Skill output: "No fund found with name XYZ in database"
+Your response: "I checked the database but found no fund named XYZ. The database currently has no matching records."
+
+**Example - WRONG behavior:**
+User: "Query fund information for XYZ"  
+Skill output: "No fund found with name XYZ"
+You: "Let me try querying the graph database..." ❌ DON'T DO THIS!
 """
 
         # 新增：如果刚刚创建并重载了新的 skill，添加特殊指引
