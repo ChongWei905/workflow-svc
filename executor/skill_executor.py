@@ -616,11 +616,20 @@ If yes, you can now use the available scripts to address the original request.""
             print(f"  Executing: {script.path}")
             print(f"  Arguments: {arguments}")
 
+        # 准备图数据库配置
+        graph_db_config = None
+        if self.graph_connector:
+            graph_db_config = {
+                "base_url": self.graph_connector.base_url,
+                "timeout": self.graph_connector.timeout
+            }
+
         # 执行脚本并计时
         start_time = time.time()
         exit_code, stdout, stderr = script.execute(
             arguments,
-            timeout=self.security.max_execution_time
+            timeout=self.security.max_execution_time,
+            graph_db_config=graph_db_config  # 传递图数据库配置
         )
         execution_time = time.time() - start_time
 

@@ -18,10 +18,18 @@ class SkillScript:
     def execute(self, args: list[str] | None = None,
                 cwd: Path | None = None,
                 env: dict | None = None,
-                timeout: int = 300) -> tuple[int, str, str]:
+                timeout: int = 300,
+                graph_db_config: dict | None = None) -> tuple[int, str, str]:  # 新增参数
         """
         执行脚本
         返回: (exit_code, stdout, stderr)
+
+        Args:
+            args: 命令行参数
+            cwd: 工作目录
+            env: 额外的环境变量
+            timeout: 超时时间(秒)
+            graph_db_config: 图数据库配置字典 {"base_url": "...", "timeout": ...}
         """
         script_path = str(self.path.absolute())
 
@@ -38,6 +46,11 @@ class SkillScript:
         if env:
             run_env.update(env)
 
+        # 🔥 新增: 注入图数据库配置到环境变量
+        if graph_db_config:
+            run_env["GRAPH_DB_BASE_URL"] = graph_db_config.get("base_url", "http://localhost:8080")
+            run_env["GRAPH_DB_TIMEOUT"] = str(graph_db_config.get("timeout", 30))
+
         # 新增：如果没有指定 cwd，使用项目根目录
         if cwd is None:
             # 从脚本路径推断项目根目录：scripts/ -> skill/ -> skills/ -> project-root/
@@ -49,6 +62,14 @@ class SkillScript:
             else:
                 # 如果推断失败，回退到当前工作目录
                 cwd = Path.cwd()
+
+        # 🔥 新增：将项目根目录添加到 PYTHONPATH，让脚本可以直接 import connectors
+        if self.language == "python":
+            pythonpath = str(cwd)
+            if "PYTHONPATH" in run_env:
+                run_env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{run_env['PYTHONPATH']}"
+            else:
+                run_env["PYTHONPATH"] = pythonpath
 
         try:
             result = subprocess.run(

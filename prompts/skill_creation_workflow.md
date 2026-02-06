@@ -136,6 +136,7 @@ You MUST create:
    - `description`: cannot be empty, max 1024 chars
    - NO XML tags (`<` or `>`) allowed
    - NO reserved words (anthropic, claude)
+
 2. **Fully functional scripts** in the `scripts/` directory with:
    - ✅ Real database connections (if applicable)
    - ✅ Real API calls (if applicable)  
@@ -146,61 +147,237 @@ You MUST create:
    - ❌ NO placeholders like "YOUR_API_KEY"
    - ❌ NO TODO comments
 
-#### **For Database Skills:**
-```
-python
-# GOOD: Real database connection
-import psycopg2
-import sys
+---
 
-try:
-    conn = psycopg2.connect(
-        host=sys.argv[1],
-        database=sys.argv[2],
-        user=sys.argv[3],
-        password=sys.argv[4]
-    )
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users LIMIT 10")
-    results = cursor.fetchall()
-    print(json.dumps(results, default=str))
-except Exception as e:
-    print(f"Error: {e}", file=sys.stderr)
-    sys.exit(1)
-```
+#### **🔥 CRITICAL: Python Import Rules for Skills**
 
-```
-python
-# BAD: Mock data (DO NOT DO THIS!)
-mock_data = [{"id": 1, "name": "test"}]
-print(json.dumps(mock_data))
-```
-#### **For Graph Database Skills:**
+**The execution environment automatically provides:**
 
-If `graph_connector` is available, use graph tools to query real data:
+1. **PYTHONPATH** - Set to project root, allowing direct imports
+2. **GRAPH_DB_BASE_URL** - Graph database API endpoint (from config)
+3. **GRAPH_DB_TIMEOUT** - Graph database request timeout (from config)
 
+**✅ Correct way to connect to graph database:**
 ```python
-# Query graph database for schema
-import requests
+#!/usr/bin/env python3
+"""Example: Correct way to use GraphConnector with environment variables"""
+
+import os
 import json
+from connectors import GraphConnector
+
+def main():
+    # 🔥 CRITICAL: Read configuration from environment variables
+    # These are automatically injected by the skill executor
+    base_url = os.getenv("GRAPH_DB_BASE_URL", "http://localhost:8080")
+    timeout = int(os.getenv("GRAPH_DB_TIMEOUT", "30"))
+    
+    # Initialize connector with env vars
+    connector = GraphConnector(
+        base_url=base_url,
+        timeout=timeout
+    )
+    
+    # Use connector methods (note: no 'graph_' prefix!)
+    results = connector.property_filter(
+        element_class="Fund",
+        element_type="NODE",
+        filter_dict={"scale": "> 10000"},
+        get_all_properties=True
+    )
+    
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+
+if __name__ == "__main__":
+    main()
+```
+**❌ WRONG: Hardcoded connection details**
+```python
+# ❌ WRONG: Don't hardcode the URL!
+connector = GraphConnector(
+    base_url="http://localhost:8080",  # This might be wrong in production!
+    timeout=30
+)
+```
+**✅ CORRECT: Use environment variables**
+```python
+# ✅ CORRECT: Read from environment
+base_url = os.getenv("GRAPH_DB_BASE_URL", "http://localhost:8080")
+timeout = int(os.getenv("GRAPH_DB_TIMEOUT", "30"))
+connector = GraphConnector(base_url=base_url, timeout=timeout)
+```
+---
+
+#### **📝 Standard Script Template for Graph Database Skills**
+
+**Use this template for all graph database query scripts:**
+```python
+#!/usr/bin/env python3
+"""
+[Script Description]
+
+Usage:
+    python script_name.py [arguments]
+
+Environment Variables Required:
+    GRAPH_DB_BASE_URL - Graph database API endpoint (auto-provided)
+    GRAPH_DB_TIMEOUT  - Request timeout in seconds (auto-provided)
+"""
+
+import os
 import sys
+import json
+from connectors import GraphConnector
 
-BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+def get_graph_connector():
+    """Get configured GraphConnector instance
+    
+    Reads configuration from environment variables that are
+    automatically injected by the skill executor.
+    """
+    base_url = os.getenv("GRAPH_DB_BASE_URL")
+    if not base_url:
+        print("Error: GRAPH_DB_BASE_URL not set", file=sys.stderr)
+        sys.exit(1)
+    
+    timeout = int(os.getenv("GRAPH_DB_TIMEOUT", "30"))
+    
+    return GraphConnector(base_url=base_url, timeout=timeout)
 
-# Get real object types
-response = requests.get(f"{BASE_URL}/get_object_types")
-if response.status_code == 200:
-    data = response.json()
-    print(json.dumps(data["result"], indent=2))
-else:
-    print(f"Error: {response.status_code}", file=sys.stderr)
-    sys.exit(1)
+def main():
+    # Parse arguments
+    if len(sys.argv) < 2:
+        print("Usage: python script_name.py <argument>", file=sys.stderr)
+        sys.exit(1)
+    
+    user_input = sys.argv[1]
+    
+    try:
+        # Get connector with auto-injected config
+        connector = get_graph_connector()
+        
+        # Perform query
+        results = connector.property_filter(
+            element_class="YourEntityType",
+            element_type="NODE",
+            filter_dict={"propertyName": f"= '{user_input}'"},
+            get_all_properties=True
+        )
+        
+        if not results:
+            print(f"No results found for: {user_input}")
+            sys.exit(0)
+        
+        # Output results
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+        
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
 ```
-```
+---
 
+#### **Real-world Example: Query Organization**
+```python
+#!/usr/bin/env python3
+"""Query organization information from graph database
+
+Environment Variables:
+    GRAPH_DB_BASE_URL - Automatically provided by skill executor
+    GRAPH_DB_TIMEOUT  - Automatically provided by skill executor
+"""
+
+import os
+import sys
+import json
+from connectors import GraphConnector
+
+def query_organization(org_name: str):
+    """Query organization by name using environment configuration"""
+    
+    # 🔥 Read from environment (auto-injected)
+    base_url = os.getenv("GRAPH_DB_BASE_URL")
+    timeout = int(os.getenv("GRAPH_DB_TIMEOUT", "30"))
+    
+    if not base_url:
+        raise ValueError("GRAPH_DB_BASE_URL not configured")
+    
+    connector = GraphConnector(base_url=base_url, timeout=timeout)
+    
+    # Step 1: Find organizations matching the name
+    orgs = connector.property_filter(
+        element_class="Organ",
+        element_type="NODE",
+        filter_dict={"name": f"CONTAINS '{org_name}'"},
+        get_all_properties=True
+    )
+    
+    if not orgs:
+        return {"error": f"No organization found with name: {org_name}"}
+    
+    # Step 2: Get detailed info for first match
+    org_uuid = orgs[0]["n.uuid"]
+    details = connector.property_info_search(
+        element_class="Organ",
+        element_type="NODE",
+        element_uuid=org_uuid
+    )
+    
+    return {
+        "organization": details,
+        "total_matches": len(orgs),
+        "config": {
+            "base_url": base_url,
+            "timeout": timeout
+        }
+    }
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python query_org.py <organization_name>")
+        sys.exit(1)
+    
+    org_name = sys.argv[1]
+    
+    try:
+        result = query_organization(org_name)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
+---
+
+#### **Environment Variables Summary**
+
+All skill scripts automatically receive these environment variables:
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `PYTHONPATH` | Project root path (for imports) | `/path/to/project` |
+| `GRAPH_DB_BASE_URL` | Graph database API endpoint | `http://localhost:8080` |
+| `GRAPH_DB_TIMEOUT` | Request timeout (seconds) | `30` |
+
+**To use in your scripts:**
+```python
+import os
+
+# Required for graph database
+base_url = os.getenv("GRAPH_DB_BASE_URL")  # Auto-provided
+timeout = int(os.getenv("GRAPH_DB_TIMEOUT", "30"))  # Auto-provided
+
+# PYTHONPATH is automatically set, just import:
+from connectors import GraphConnector
+```
+---
 
 #### **For API Integration Skills:**
-
 ```python
 # Real API call with error handling
 import requests
@@ -229,30 +406,71 @@ if __name__ == "__main__":
     data = fetch_weather(city, api_key)
     print(json.dumps(data, indent=2))
 ```
-
+---
 
 #### **Script Requirements Checklist:**
 
+- [ ] Uses **direct imports** (`from connectors import GraphConnector`)
+- [ ] **NO** `sys.path.insert()` or `sys.path.append()`
+- [ ] Uses correct method names (without `graph_` prefix)
 - [ ] Accepts command-line arguments
 - [ ] Includes error handling (try-catch blocks)
 - [ ] Returns actual data from real sources
 - [ ] Has meaningful error messages
 - [ ] Exits with proper exit codes (0 = success, 1 = error)
 - [ ] Includes docstrings and comments
-- [ ] Uses only available Python packages (see installed packages list)
 
-#### **File Structure to Create:**
+---
 
+#### **Common Mistakes to Avoid:**
+
+❌ **Mistake 1: Wrong function name**
+```python
+# WRONG
+from connectors import graph_property_filter  # No such function!
+results = graph_property_filter(...)
 ```
-skills/
-└── <skill-name>/
-    ├── SKILL.md                    # Complete documentation
-    └── scripts/
-        ├── <main_script>.py        # Primary functionality
-        ├── <helper_script>.py      # Additional features (if needed)
-        └── README.md               # Script usage guide (optional)
+✅ **Correct:**
+```python
+# CORRECT
+from connectors import GraphConnector
+connector = GraphConnector(...)
+results = connector.property_filter(...)
 ```
+---
 
+❌ **Mistake 2: Unnecessary sys.path manipulation**
+```python
+# WRONG - Don't do this!
+import sys
+sys.path.insert(0, '/path/to/project')
+```
+✅ **Correct:**
+```python
+# CORRECT - Just import directly
+from connectors import GraphConnector
+```
+---
+
+❌ **Mistake 3: Not handling errors**
+```python
+# WRONG - No error handling
+connector = GraphConnector(...)
+results = connector.property_filter(...)
+print(results)
+```
+✅ **Correct:**
+```python
+# CORRECT - With error handling
+try:
+    connector = GraphConnector(...)
+    results = connector.property_filter(...)
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+```
+---
 
 #### **After Creating the Skill:**
 
@@ -260,37 +478,44 @@ skills/
 2. **Test** the scripts immediately with sample inputs
 3. **Report** success or failure to the user
 4. **Reload** the skill to make it available
-5**DO NOT** ask the user to manually edit files
-6**DO NOT** leave TODO items for the user
+5. **DO NOT** ask the user to manually edit files
+6. **DO NOT** leave TODO items for the user
 
-#### **Example: Complete PostgreSQL Skill Creation**
-
-**User:** "Create a skill to query my PostgreSQL database"
-
-**Your Response:**
-1. Ask: "Please provide connection details (host, port, database, user, password)"
-2. User provides: "localhost, 5432, mydb, admin, secret123"
-3. Create complete skill with:
-   - `skills/postgres-query/SKILL.md`
-   - `skills/postgres-query/scripts/query_table.py` (with real psycopg2 connection)
-   - `skills/postgres-query/scripts/list_tables.py`
-4. Test: Run `query_table.py` to verify connection works
-5. Report: "✓ PostgreSQL skill created and tested successfully!"
-
-**Example: Complete Graph Database Skill**
+#### **Example: Complete Graph Database Skill Creation**
 
 **User:** "Create a skill to query organizational hierarchy from the graph database"
 
 **Your Response:**
-1. Use graph tools to discover schema:
-   - Call `graph_get_object_types()` to see "Organ" exists
-   - Call `graph_query_examples("Organ", 2)` to understand data structure
-2. Create complete skill with:
-   - `skills/org-hierarchy/SKILL.md`
-   - `skills/org-hierarchy/scripts/query_org.py` (real HTTP requests to graph API)
-   - `skills/org-hierarchy/scripts/get_hierarchy.py` (uses hop_search)
-3. Test the scripts with real queries
-4. Report: "✓ Organization hierarchy skill created successfully!"
+
+1. **Discover schema:**
+   - Call `graph_get_object_types()` → Find "Organ" entity
+   - Call `graph_query_examples("Organ", 2)` → Understand structure
+
+2. **Create complete skill:**
+   ```
+   skills/org-hierarchy/
+   ├── SKILL.md
+   └── scripts/
+       ├── query_org.py       (uses os.getenv for config)
+       └── get_hierarchy.py   (uses os.getenv for config)
+   ```
+
+3. **Script example (query_org.py):**
+   ```python
+   import os
+   from connectors import GraphConnector
+   
+   connector = GraphConnector(
+       base_url=os.getenv("GRAPH_DB_BASE_URL"),  # ✅ From environment
+       timeout=int(os.getenv("GRAPH_DB_TIMEOUT", "30"))
+   )
+   
+   results = connector.property_filter(...)
+   ```
+
+4. **Test and report:**
+   "✅ Organization hierarchy skill created successfully!
+   All scripts use environment-based configuration."
 
 ### Step 6: Execution-Time Graph Queries (When Running the Skill)
 **When the skill is executed later, it MUST:**
