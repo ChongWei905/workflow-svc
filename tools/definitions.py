@@ -37,6 +37,33 @@ def create_tools_definition(skills: dict[str, Skill]) -> list[dict]:
                 }
             }
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "reload_skill",
+                "description": """Reload a skill from disk after creating or modifying it.
+
+    **Use this after creating a new skill to make it available for execution.**
+
+    This will:
+    1. Parse the SKILL.md file
+    2. Load all scripts in the scripts/ directory
+    3. Add the skill to the available skills list
+
+    After reloading, you can immediately use execute_skill_script to run the new skill's scripts.
+    """,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "skill_name": {
+                            "type": "string",
+                            "description": "Name of the skill to reload (should match the skill directory name)"
+                        }
+                    },
+                    "required": ["skill_name"]
+                }
+            }
+        },
         # Level 2: 读取完整 skill 内容的工具
         {
             "type": "function",

@@ -235,7 +235,7 @@ def main():
         return 1
 
     # 5. 创建执行器 (Executor 层) - 带安全配置
-    executor = SkillExecutor(llm, skills, security_config=security_config, graph_connector=graph_connector)
+    executor = SkillExecutor(llm, skills, security_config=security_config, graph_connector=graph_connector, skills_dir=skills_dir)
 
     # 6. 交互模式
     if args.interactive:

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 from llm import LLMAdapter
+from loaders import SkillLoader
 from models import Skill
 from tools import create_tools_definition, create_graph_tools
 from prompts import load_prompt, SKILL_CREATION_WORKFLOW
@@ -20,7 +21,8 @@ class SkillExecutor:
         skills: dict[str, Skill],
         security_config: SecurityConfig | None = None,
         auditor=None,
-        graph_connector=None  # 新增:图数据库连接器
+        graph_connector=None,  # 新增:图数据库连接器
+        skills_dir: Path | None = None
     ):
         self.llm = llm
         self.skills = skills
@@ -39,6 +41,11 @@ class SkillExecutor:
 
         # 会话历史
         self.conversation_history: list[dict] = []
+        self.skills_dir = skills_dir or Path.cwd() / "skills"
+
+        # 跟踪原始用户意图
+        self.original_user_intent: str | None = None
+        self.just_created_skill: str | None = None
 
     def execute(self, user_query: str, verbose: bool = False, remember_context: bool = False) -> str:
         """
@@ -58,6 +65,11 @@ class SkillExecutor:
         - Level 2: 通过 read_skill_content 工具按需加载完整内容
         - Level 3: 按需执行脚本,只返回输出不注入源码
         """
+        # 新增：记录原始用户意图（如果不是继续对话）
+        if not remember_context or not self.conversation_history:
+            self.original_user_intent = user_query
+            self.just_created_skill = None
+
         # Level 1: 仅加载元数据(name/description)
         skills_context = "\n".join([s.to_metadata_context() for s in self.skills.values()])
 
@@ -99,11 +111,34 @@ You have access to a graph database with the following tools:
 - Use count_search to understand data volume before fetching all results
 """
 
+        # 新增：如果刚刚创建并重载了新的 skill，添加特殊指引
+        skill_execution_reminder = ""
+        if self.just_created_skill and self.original_user_intent:
+            skill_execution_reminder = f"""
+
+## 🎯 IMPORTANT: Skill Just Created!
+
+You just created and loaded a new skill: **{self.just_created_skill}**
+
+**Original user request was:** "{self.original_user_intent}"
+
+**ACTION REQUIRED:**
+1. **Ask the user** if they want to execute this new skill to solve their original problem
+2. **If user agrees**, use `execute_skill_script` to run the appropriate script from the new skill
+3. **If user declines**, just acknowledge and wait for their next request
+
+**Example response:**
+"✅ The skill '{self.just_created_skill}' has been successfully created and loaded!
+
+Would you like me to execute it now to complete your original request: '{self.original_user_intent}'?"
+"""
+
         system_prompt = f"""You are an AI assistant with access to skills and their scripts.
 
 ## Available Skills (Metadata)
 {skills_context}
 {graph_db_instruction}
+{skill_execution_reminder}
 
 ## ⚠️ CRITICAL: SKILL.md Format Requirements
 
@@ -222,6 +257,8 @@ When users ask you to DO something (not just explain), you MUST execute the appr
     def reset_conversation(self):
         """重置会话历史"""
         self.conversation_history = []
+        self.original_user_intent = None
+        self.just_created_skill = None
 
     def _truncate_large_content_in_last_assistant_message(self, verbose, messages: list[dict], max_content_size: int = 500):
         """
@@ -326,11 +363,93 @@ When users ask you to DO something (not just explain), you MUST execute the appr
                 verbose
             )
 
+        elif name == "reload_skill":
+            # 新增: 重新加载 skill
+            if "skill_name" not in args:
+                return "Error: Missing required parameter 'skill_name'"
+            return self._reload_skill(args["skill_name"], verbose)
+
         elif name.startswith("graph_"):
             return self._handle_graph_tool(name, args, verbose)
 
         else:
             return f"Unknown tool: {name}"
+
+    def _reload_skill(self, skill_name: str, verbose: bool) -> str:
+        """重新加载一个 skill（用于加载新创建的 skill）"""
+        try:
+            skill_path = self.skills_dir / skill_name
+            skill_md_path = skill_path / "SKILL.md"
+
+            # 检查 skill 目录是否存在
+            if not skill_path.exists():
+                return f"Error: Skill directory not found: {skill_path}"
+
+            # 检查 SKILL.md 是否存在
+            if not skill_md_path.exists():
+                return f"Error: SKILL.md not found in {skill_path}"
+
+            # 使用 SkillLoader 加载单个 skill
+            loader = SkillLoader(self.skills_dir, auditor=self.auditor)
+            skill = loader._parse_skill(skill_md_path)
+
+            if not skill:
+                return f"Error: Failed to parse SKILL.md. Please check the frontmatter format:\n" \
+                       f"- Must start with '---'\n" \
+                       f"- Must include 'name' and 'description' fields\n" \
+                       f"- Must end with '---'"
+
+            # 添加/更新到 skills 字典
+            self.skills[skill.name] = skill
+
+            # 重新生成工具定义（包含新 skill）
+            from tools import create_tools_definition, create_graph_tools
+            skill_tools = create_tools_definition(self.skills)
+            graph_tools = create_graph_tools() if self.graph_connector else []
+            self.tools = skill_tools + graph_tools
+
+            # 记录刚创建的 skill
+            self.just_created_skill = skill.name
+
+            if verbose:
+                print(f"  ✅ Skill '{skill.name}' loaded successfully")
+                print(f"  📁 Path: {skill.path}")
+                print(f"  📜 Scripts: {len(skill.scripts)}")
+
+            # 返回详细信息
+            scripts_info = ""
+            if skill.scripts:
+                scripts_list = "\n".join([
+                    f"  - {s.name} ({s.language}): {s.description or 'No description'}"
+                    for s in skill.scripts
+                ])
+                scripts_info = f"\n\n**Available Scripts:**\n{scripts_list}"
+
+            # 新增：如果有原始意图，提示可以立即执行
+            execution_prompt = ""
+            if self.original_user_intent:
+                execution_prompt = f"""
+
+---
+
+**🎯 Next Steps:**
+
+This skill was created to solve the original request: "{self.original_user_intent}"
+
+**Would you like to execute this skill now to complete the task?**
+
+If yes, you can now use the available scripts to address the original request."""
+
+            return f"""✅ Skill '{skill.name}' loaded successfully!
+
+**Description:** {skill.description}
+**Path:** {skill.path}
+**Scripts Count:** {len(skill.scripts)}{scripts_info}{execution_prompt}"""
+
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            return f"Error reloading skill '{skill_name}': {str(e)}\n\nDetails:\n{error_details}"
 
     def _write_file(self, filepath: str, content: str, create_dirs: bool, verbose: bool) -> str:
         """写入文件内容"""

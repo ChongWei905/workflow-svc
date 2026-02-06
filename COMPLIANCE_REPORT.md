@@ -151,15 +151,15 @@ skill.to_full_context()
 
 ```bash
 # 默认模式（渐进式披露）
-python skill_executor.py "创建新 skill" --skills-dir ./skills
+python skill_executor_main.py "创建新 skill" --skills-dir ./skills
 
 # 带审计日志
-python skill_executor.py "执行脚本" \
+python skill_executor_main.py "执行脚本" \
     --audit-log audit.log \
     --audit-level detailed
 
 # 限制执行路径
-python skill_executor.py "处理文件" \
+python skill_executor_main.py "处理文件" \
     --allow-path ./safe-scripts \
     --max-execution-time 60
 ```

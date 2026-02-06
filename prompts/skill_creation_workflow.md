@@ -259,8 +259,9 @@ skills/
 1. **Verify** all files are created
 2. **Test** the scripts immediately with sample inputs
 3. **Report** success or failure to the user
-4. **DO NOT** ask the user to manually edit files
-5. **DO NOT** leave TODO items for the user
+4. **Reload** the skill to make it available
+5**DO NOT** ask the user to manually edit files
+6**DO NOT** leave TODO items for the user
 
 #### **Example: Complete PostgreSQL Skill Creation**
 

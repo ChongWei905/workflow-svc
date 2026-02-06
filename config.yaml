@@ -22,7 +22,7 @@ verbose: false
 # ===========================================
 graph_database:
   enabled: true  # 是否启用图数据库
-  base_url: http://10.90.40.85:8061  # 图数据库 API 地址
+  base_url: http://localhost:8080  # 图数据库 API 地址
   timeout: 30  # 请求超时(秒)
   cache_enabled: true  # 是否启用查询缓存
 
