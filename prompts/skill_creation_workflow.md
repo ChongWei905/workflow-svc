@@ -472,6 +472,32 @@ except Exception as e:
 ```
 ---
 
+**Mistake 4: Using os.popen() instead of subprocess.run()**
+```
+python
+# ❌ WRONG - os.popen() has encoding issues on Windows
+import os
+result = os.popen("dir").read()
+```
+✅ **Correct:**
+```
+python
+# ✅ CORRECT - subprocess.run() with explicit encoding
+import subprocess
+result = subprocess.run(
+    ["cmd", "/c", "dir"],
+    capture_output=True,
+    text=True,
+    encoding='utf-8',
+    errors='replace'  # Replace invalid chars instead of crashing
+).stdout
+```
+**Why?**
+- `os.popen()` uses system default encoding (GBK on Windows)
+- `subprocess.run()` allows explicit encoding control
+- `errors='replace'` prevents UnicodeDecodeError
+---
+
 #### **After Creating the Skill:**
 
 1. **Verify** all files are created
