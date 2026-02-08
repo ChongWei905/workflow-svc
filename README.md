@@ -1,400 +1,439 @@
 # 🦞 Skill Executor
 
-> 通过自然语言问题搜索、调度并执行 Skills 中的脚本
+> 基于 LLM 的智能技能编排框架，支持自然语言驱动的脚本执行和图数据库集成
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/LLM-OpenAI%20%7C%20Anthropic-green?style=for-the-badge" alt="LLM Support">
+  <img src="https://img.shields.io/badge/LLM-OpenAI%20%7C%20DeepSeek-green?style=for-the-badge" alt="LLM Support">
+  <img src="https://img.shields.io/badge/Graph%20DB-Integrated-orange?style=for-the-badge" alt="Graph DB">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License">
 </p>
 
-## 📖 介绍
+---
 
-Skill Executor 是一个智能代理框架，它能够：
+## 📖 项目简介
 
-- **🔍 自然语言搜索**：根据用户问题自动匹配最相关的 Skills
-- **🤖 LLM 智能调度**：让大语言模型理解 Skill 内容并决策何时执行脚本
-- **⚡ 实际执行脚本**：支持 Python、Bash 等脚本的真实执行
-- **🔌 多 LLM 支持**：支持 OpenAI、Anthropic Claude 等多种 LLM API
+**Skill Executor** 是一个现代化的 AI Agent 框架，它将 **LLM（大语言模型）** 与 **可执行脚本（Skills）** 和 **图数据库** 深度集成，实现了：
 
-### 什么是 Skill？
+- 🧠 **自然语言理解**：用户用中文/英文描述需求，AI 自动理解意图
+- 🤖 **智能工具调度**：LLM 决定调用哪些 Skills 和图数据库查询
+- 📊 **图数据库集成**：直接查询知识图谱，支持实体、关系、路径搜索
+- 🔄 **动态 Skill 创建**：AI 可根据用户需求自动生成新的 Skills
+- 🛡️ **安全审计**：完整的执行日志、权限控制和沙箱机制
 
-Skill 是一个包含文档和可执行脚本的目录结构：
+### 核心概念
+
+#### 什么是 Skill？
+
+**Skill** 是一个自包含的功能单元，包含：
+- **SKILL.md**：功能描述（YAML frontmatter + Markdown 文档）
+- **scripts/**：可执行脚本（Python/Bash）
+- **references/**（可选）：参考文档
+- **assets/**（可选）：资源文件
 
 ```
 my-skill/
-├── SKILL.md           # 描述文件（包含 YAML frontmatter）
-├── scripts/           # 可执行脚本目录
-│   ├── action1.py
-│   └── action2.sh
-├── references/        # 参考文档（可选）
-└── assets/            # 资源文件（可选）
+├── SKILL.md              # 功能说明
+├── scripts/
+│   ├── query_data.py     # 查询脚本
+│   └── process_data.py   # 处理脚本
+├── references/
+│   └── api_docs.md       # API 文档
+└── assets/
+    └── config.json       # 配置文件
 ```
+
+
+#### 为什么需要图数据库？
+
+图数据库用于存储和查询复杂的关系数据（如组织架构、供应链、知识图谱）：
+- **实体查询**：查找符合条件的节点（如 "所有一级分行"）
+- **关系遍历**：查找连接路径（如 "部门 A 到部门 B 的上下级关系"）
+- **模式匹配**：查找特定的图结构（如 "所有投资了基金的机构"）
 
 ---
 
 ## 🏗️ 架构设计
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Skill Executor                           │
-│                                                                 │
-│  ┌─────────────┐    ┌───────────────┐    ┌─────────────────┐   │
-│  │ SkillLoader │ →  │ SkillSearcher │ →  │  LLM Adapter    │   │
-│  │             │    │               │    │                 │   │
-│  │ • 解析 YAML │    │ • 语义搜索    │    │ • OpenAI        │   │
-│  │ • 加载脚本  │    │ • 关键词匹配  │    │ • Anthropic     │   │
-│  └─────────────┘    └───────────────┘    │ • 可扩展...     │   │
-│                                          └─────────────────┘   │
-│                              │                                  │
-│                              ▼                                  │
-│                     ┌─────────────────┐                        │
-│                     │  Tool Executor  │                        │
-│                     │                 │                        │
-│                     │ • 执行脚本     │                        │
-│                     │ • 读取脚本     │                        │
-│                     │ • 列出脚本     │                        │
-│                     └─────────────────┘                        │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔄 执行流程
-
-### 完整流程图
+### 系统架构
 
 ```
-用户输入自然语言问题
-         │
-         ▼
-┌─────────────────────────────────────┐
-│  1. 加载 Skills                      │
-│     • 扫描 skills 目录               │
-│     • 解析 SKILL.md frontmatter     │
-│     • 发现 scripts/ 中的脚本        │
-└─────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│  2. 构建上下文                       │
-│     • Skills 内容注入系统提示词      │
-│     • 定义可用工具（Tools）          │
-└─────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│  3. LLM 推理                         │
-│     • 分析用户问题                   │
-│     • 参考 Skill 文档               │
-│     • 决定是否调用工具               │
-└─────────────────────────────────────┘
-         │
-         ├── 无需工具 ──────────────────┐
-         │                              │
-         ▼                              ▼
-┌─────────────────────────────────────┐ │
-│  4. 执行工具调用                     │ │
-│     • execute_skill_script          │ │
-│     • list_skill_scripts            │ │
-│     • read_script_content           │ │
-└─────────────────────────────────────┘ │
-         │                              │
-         ▼                              │
-┌─────────────────────────────────────┐ │
-│  5. 脚本实际执行                     │ │
-│     subprocess.run([                │ │
-│       "python3", "script.py",       │ │
-│       "--arg1", "value"             │ │
-│     ])                              │ │
-└─────────────────────────────────────┘ │
-         │                              │
-         ▼                              │
-┌─────────────────────────────────────┐ │
-│  6. 结果返回 LLM                     │ │
-│     • stdout / stderr               │ │
-│     • exit code                     │ │
-└─────────────────────────────────────┘ │
-         │                              │
-         └──────────────┬───────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────┐
-│  7. 生成最终回复                     │
-│     • 解释执行结果                   │
-│     • 提供后续建议                   │
-└─────────────────────────────────────┘
-         │
-         ▼
-      返回用户
+┌──────────────────────────────────────────────────────────────────┐
+│                      Skill Executor 框架                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────┐   ┌───────────┐   ┌──────────┐   ┌────────────┐  │
+│  │  Prompts │──>│    LLM    │──>│  Tools   │──>│  Executor  │  │
+│  │  加载器   │   │  适配器   │   │  定义层  │   │   执行层   │  │
+│  └──────────┘   └───────────┘   └──────────┘   └────────────┘  │
+│       │              │                │               │          │
+│       │         ┌────┴────┐      ┌───┴────┐     ┌────┴──────┐   │
+│       │         │ OpenAI  │      │ Skills │     │ Security  │   │
+│       │         │ DeepSeek│      │ Graph  │     │ Auditor   │   │
+│       │         └─────────┘      └────────┘     └───────────┘   │
+│       │                                                          │
+│  ┌────▼─────────────────────────────────────────────────────┐   │
+│  │              Prompt 模板系统                              │   │
+│  │  • system_prompt_base.md     (系统提示词)                │   │
+│  │  • graph_db_instruction.md   (图数据库使用指南)          │   │
+│  │  • skill_creation_workflow.md (Skill 创建流程)           │   │
+│  │  • skill_execution_reminder.md (执行提醒)                │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### 时序图
 
-```
-┌──────┐     ┌──────────┐     ┌─────┐     ┌────────┐
-│ User │     │ Executor │     │ LLM │     │ Script │
-└──┬───┘     └────┬─────┘     └──┬──┘     └───┬────┘
-   │              │              │            │
-   │  "创建skill" │              │            │
-   │─────────────>│              │            │
-   │              │              │            │
-   │              │ chat(tools)  │            │
-   │              │─────────────>│            │
-   │              │              │            │
-   │              │ tool_call:   │            │
-   │              │ execute_script            │
-   │              │<─────────────│            │
-   │              │              │            │
-   │              │ subprocess.run()          │
-   │              │───────────────────────────>
-   │              │              │            │
-   │              │ stdout/stderr│            │
-   │              │<───────────────────────────
-   │              │              │            │
-   │              │ tool_result  │            │
-   │              │─────────────>│            │
-   │              │              │            │
-   │              │ final_answer │            │
-   │              │<─────────────│            │
-   │              │              │            │
-   │  响应结果    │              │            │
-   │<─────────────│              │            │
-   │              │              │            │
-```
+### 核心组件
+
+| 模块 | 功能 | 关键文件 |
+|------|------|----------|
+| **Prompts** | 管理 AI 提示词模板 | `prompts/*.md` |
+| **LLM Adapters** | 适配不同 LLM API | `llm/openai.py` |
+| **Tools** | 定义可调用的工具 | `tools/definitions.py`, `tools/graph_tools.py` |
+| **Executor** | 执行脚本和工具调用 | `executor/skill_executor.py` |
+| **Connectors** | 图数据库连接器 | `connectors/graph_connector.py` |
+| **Models** | 数据模型定义 | `models/skill.py` |
+| **Loaders** | 加载 Skills | `loaders/skill_loader.py` |
 
 ---
 
 ## 🚀 快速开始
 
-### 安装依赖
+### 1. 安装依赖
 
-```bash
-pip install openai anthropic pyyaml
+```shell script
+# 克隆项目
+git clone <repository-url>
+cd workflow-svc
+
+# 安装 Python 依赖
+pip install -r requirements.txt
 ```
 
-### 设置环境变量
 
-```bash
-# OpenAI
+### 2. 配置文件
+
+复制配置模板并编辑：
+
+```shell script
+cp config.yaml.example config.yaml
+```
+
+
+编辑 `config.yaml`：
+
+```yaml
+# LLM 配置
+provider: openai  # 或 anthropic
+model: deepseek-chat
+base_url: https://api.deepseek.com
+api_key: sk-your-api-key
+
+# 图数据库配置
+graph_database:
+  enabled: true
+  base_url: http://localhost:8080
+  timeout: 30
+
+# Skills 目录
+skills_dir: ./skills
+
+# 安全配置
+security:
+  audit_level: basic
+  max_execution_time: 300
+```
+
+
+### 3. 设置环境变量（可选）
+
+```shell script
 export OPENAI_API_KEY="sk-..."
-
-# 或 Anthropic
+# 或
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-### 基本使用
 
-```bash
-# 列出所有可用的 Skills
-python skill_executor_main.py --list --skills-dir ./skills
+### 4. 运行示例
 
-# 执行单次查询
-python skill_executor_main.py "帮我创建一个名为 weather-tool 的 skill" \
-    --skills-dir ./skills
+```shell script
+# 列出所有已加载的 Skills
+python skill_executor_main.py --list
 
-# 交互模式
-python skill_executor_main.py -i --skills-dir ./skills
+# 单次查询
+python skill_executor_main.py "查询深圳分行的信息"
 
-# 使用 Claude
-python skill_executor_main.py "打包 my-skill" \
-    --provider anthropic \
-    --model claude-sonnet-4-20250514
+# 交互模式（推荐）
+python skill_executor_main.py -i
 
 # 详细输出模式
-python skill_executor_main.py "验证 weather skill 是否正确" \
-    --verbose
+python skill_executor_main.py "创建一个查询基金的 skill" --verbose
 ```
+
 
 ---
 
-## 🧪 测试
+## 🔄 工作流程
 
-项目包含完整的单元测试，使用 pytest 框架。
+### 1. 基本执行流程
 
-### 安装测试依赖
-
-```bash
-pip install -r requirements-test.txt
+```
+用户输入 → LLM 理解 → 选择工具 → 执行脚本/查询 → 返回结果
 ```
 
-### 运行测试
 
-```bash
-# 运行所有测试
-pytest
+#### 示例对话
 
-# 运行特定模块的测试
-pytest tests/models/      # 测试数据模型层
-pytest tests/loaders/     # 测试加载器层
-pytest tests/llm/         # 测试 LLM 适配器层
-pytest tests/tools/       # 测试工具层
-pytest tests/executor/    # 测试执行器层
+**用户**：查询深圳蛇口支行的信息
 
-# 查看测试覆盖率
-pytest --cov=. --cov-report=term-missing
+**系统执行流程**：
+1. **LLM 分析**：识别需要查询图数据库中的 `Organ` 实体
+2. **工具调用**：`graph_property_filter(element_class="Organ", filter_dict={"name": "CONTAINS '深圳蛇口'"})`
+3. **返回结果**：找到 UUID 为 `Organ_0400000012` 的节点
+4. **详细查询**：`graph_property_info(element_class="Organ", element_uuid="Organ_0400000012")`
+5. **格式化输出**：将 JSON 数据转换为用户友好的文本
 
-# 生成 HTML 覆盖率报告
-pytest --cov=. --cov-report=html
+### 2. Skill 创建流程（6 步工作流）
+
+基于 `prompts/skill_creation_workflow.md`，AI 遵循以下步骤：
+
+#### Step 1: 确认需求
+```
+AI: "我没有找到匹配的 Skill。是否要创建一个新的 Skill？"
+用户: "是"
 ```
 
-### 使用 Makefile
 
-```bash
-make test          # 运行所有测试
-make test-cov      # 运行测试并显示覆盖率
-make test-models   # 测试 models 层
-make clean         # 清理测试文件
+#### Step 2: 收集参考文档
+```
+AI: "请提供参考文档（API 文档、数据库 schema 等）"
+用户: [提供文档路径或内容]
 ```
 
-详细的测试指南请参考 [TESTING.md](TESTING.md)。
 
+#### Step 3: 查询图数据库 Schema
+AI 自动调用：
+- `graph_get_object_types()` - 获取所有实体类型
+- `graph_get_entity_schema(entity_type="Organ")` - 获取实体 schema
+- `graph_query_examples(entity_type="Organ", limit=3)` - 获取示例数据
+
+#### Step 4: 设计执行流程
+AI 向用户展示详细的执行计划：
+```markdown
+📋 Skill Execution Flow Plan
+
+Skill Name: org-query
+Description: Query organization information from graph database
+
+📊 Required Graph Entities:
+1. Organ (组织机构)
+   - Properties: name, organ_code, organ_level, parent_code
+   - Example UUID: Organ_0400000012
+
+🔄 Execution Steps:
+Step 1: Filter organizations by name
+   - Query: graph_property_filter(...)
+   - Expected Output: List of matching UUIDs
+
+Step 2: Get detailed properties
+   - Query: graph_property_info(...)
+   - Expected Output: Full organization details
+```
+
+
+**等待用户确认**：`"执行流程是否正确？是否继续创建？"`
+
+#### Step 5: 创建 Skill 包
+
+AI 使用 `write_file` 工具创建：
+
+1. **SKILL.md**（带 YAML frontmatter）
+```markdown
+---
+name: org-query
+description: Query organization information from graph database
 ---
 
-## 📚 使用用例
+# Organization Query Skill
 
-### 用例 1：创建新 Skill
-
-```bash
-$ python skill_executor_main.py "创建一个新的 skill，名字叫 translator，用于翻译文本"
-
-✓ Loaded 45 skills
-
-[Iteration 1]
-  Tool: execute_skill_script
-  Args: {'skill_name': 'skill-creator', 'script_name': 'init_skill',
-         'arguments': ['translator', '--path', './skills', '--resources', 'scripts']}
-  Executing: ./skills/skill-creator/scripts/init_skill.py
-  Result: exit_code=0
-
-==================================================
-我已经成功创建了名为 "translator" 的 skill！
-
-创建的目录结构：
-```
-./skills/translator/
-├── SKILL.md      # 主文档文件
-└── scripts/      # 脚本目录
+## Overview
+This skill queries organization data from the graph database...
 ```
 
 
-接下来您需要：
-1. 编辑 `SKILL.md` 填写描述和使用说明
-2. 在 `scripts/` 目录中添加翻译脚本
-3. 运行验证确保结构正确
-```
-
-### 用例 2：执行 PDF 处理
-
-```bash
-$ python skill_executor_main.py "把 report.pdf 的前 5 页提取成图片"
-
-✓ Loaded 45 skills
-
-[Iteration 1]
-  Tool: execute_skill_script
-  Args: {'skill_name': 'nano-pdf', 'script_name': 'convert_pdf_to_images',
-         'arguments': ['report.pdf', '--pages', '1-5', '--output', './images']}
-  Executing: ./skills/nano-pdf/scripts/convert_pdf_to_images.py
-  Result: exit_code=0
-
-==================================================
-PDF 转换完成！
-
-已将 report.pdf 的前 5 页转换为图片，保存在 ./images 目录：
-- page_1.png
-- page_2.png
-- page_3.png
-- page_4.png
-- page_5.png
-```
-
-### 用例 3：验证 Skill 结构
-
-```bash
-$ python skill_executor_main.py "验证 my-skill 这个 skill 是否符合规范"
-
-✓ Loaded 45 skills
-
-[Iteration 1]
-  Tool: execute_skill_script
-  Args: {'skill_name': 'skill-creator', 'script_name': 'quick_validate',
-         'arguments': ['./skills/my-skill']}
-  Result: exit_code=1
-
-==================================================
-验证失败！发现以下问题：
-
-❌ Missing 'description' in frontmatter
-
-请在 SKILL.md 的 YAML frontmatter 中添加 description 字段，例如：
-
-```yaml
----
-name: my-skill
-description: 这是一个帮助用户做某事的 skill
----
-```
-```
-
-### 用例 4：批量打包 Skills
-
-```bash
-$ python skill_executor.py "打包 weather 和 github 这两个 skills 到 ./dist 目录"
-
-✓ Loaded 45 skills
-
-[Iteration 1]
-  Tool: execute_skill_script
-  Args: {'skill_name': 'skill-creator', 'script_name': 'package_skill',
-         'arguments': ['./skills/weather', './dist']}
-  Result: exit_code=0
-
-[Iteration 2]
-  Tool: execute_skill_script
-  Args: {'skill_name': 'skill-creator', 'script_name': 'package_skill',
-         'arguments': ['./skills/github', './dist']}
-  Result: exit_code=0
-
-==================================================
-两个 Skills 都已成功打包！
-
-输出文件：
-- ./dist/weather.skill (12.5 KB)
-- ./dist/github.skill (45.2 KB)
-
-这些 .skill 文件可以分发给其他用户安装使用。
-```
-
-### 用例 5：交互式会话
-
-```bash
-$ python skill_executor_main.py -i --skills-dir ./skills
-
-✓ Loaded 45 skills
-
-🦞 Skill Executor (type 'quit' to exit)
-
-> 列出 skill-creator 里有哪些脚本
-
-Scripts in 'skill-creator':
-- init_skill (python): Skill Initializer - Creates a new skill from template
-- package_skill (python): Skill Packager - Creates a distributable .skill file
-- quick_validate (python): Quick validation script for skills
-
-> 读取 init_skill 脚本的内容
-
-Content of init_skill.py:
-
+2. **scripts/query_org.py**（生产就绪的脚本）
+```python
 #!/usr/bin/env python3
-"""
-Skill Initializer - Creates a new skill from template
-...
-"""
+import os
+import sys
+import json
+from connectors import GraphConnector
+
+def main():
+    # 使用环境变量（自动注入）
+    base_url = os.getenv("GRAPH_DB_BASE_URL")
+    connector = GraphConnector(base_url=base_url, timeout=30)
+    
+    # 实际查询逻辑
+    results = connector.property_filter(...)
+    print(json.dumps(results, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```
+
+
+3. **调用 `reload_skill`**：加载新创建的 Skill
+
+#### Step 6: 执行新 Skill
+
+```
+AI: "✅ Skill 'org-query' 已创建！是否立即执行来完成您的原始请求？"
+用户: "是"
+AI: [调用 execute_skill_script 执行脚本]
+```
+
+
+---
+
+## 📊 图数据库集成
+
+### 可用工具
+
+| 工具 | 功能 | 示例 |
+|------|------|------|
+| `graph_get_object_types` | 获取所有实体类型 | `["Organ", "Person", "Fund"]` |
+| `graph_get_object_relations` | 获取所有关系类型 | `["Organ-Own-Organ"]` |
+| `graph_get_entity_schema` | 获取实体 schema | 返回属性列表和类型 |
+| `graph_query_examples` | 获取示例数据 | 返回 N 个实例 |
+| `graph_property_filter` | 按属性过滤实体 | 查找符合条件的节点 |
+| `graph_property_info` | 获取实体详情 | 返回完整属性字典 |
+| `graph_hop_search` | 多跳路径搜索 | 查找 N 度关系 |
+| `graph_count_search` | 统计数量 | 返回符合条件的数量 |
+
+### 使用规则（基于 `graph_db_instruction.md`）
+
+#### ✅ 何时使用图数据库
+
+1. **创建 Skill 之前**：查询 schema 和示例数据
+2. **Skill 明确需要图数据作为输入时**
+
+#### ❌ 何时不使用
+
+1. **Skill 执行失败后**：完全信任 Skill 的结果
+2. **Skill 返回 "无数据" 后**：不要尝试二次查询
+3. **"验证" Skill 结果时**：Skills 比直接查询更可靠
+
+#### 示例：正确 vs 错误
+
+**❌ 错误行为**：
+```
+用户: "查询基金 XYZ"
+Skill 输出: "数据库中未找到基金 XYZ"
+AI: "让我尝试直接查询图数据库..." ← 不要这样做！
+```
+
+
+**✅ 正确行为**：
+```
+用户: "查询基金 XYZ"
+Skill 输出: "数据库中未找到基金 XYZ"
+AI: "数据库中未找到名为 XYZ 的基金记录。"
+```
+
+
+---
+
+## 🛠️ 高级功能
+
+### 1. 交互模式
+
+```shell script
+python skill_executor_main.py -i
+```
+
+
+特性：
+- **会话记忆**：保留对话上下文
+- **多轮对话**：支持复杂任务分解
+- **动态 Skill 创建**：随时创建新工具
+
+示例会话：
+```
+> 查询深圳分行
+[AI 返回查询结果]
+
+> 统计它的下级机构数量
+[AI 基于上下文继续查询]
+
+> reset
+✓ Conversation context cleared
 
 > quit
 Bye!
 ```
+
+
+### 2. 安全审计
+
+启用审计日志：
+
+```yaml
+security:
+  audit_log: ./audit.log
+  audit_level: detailed  # none, basic, detailed
+  audit_console: true
+  max_execution_time: 300
+```
+
+
+审计内容：
+- 脚本执行记录（路径、参数、exit code）
+- 文件读写操作
+- 权限拒绝事件
+- 执行时间和输出大小
+
+### 3. Prompt 模板系统
+
+所有 AI 行为由 Markdown 模板定义（`prompts/*.md`）：
+
+```python
+from prompts import load_prompt, SYSTEM_PROMPT_BASE
+
+# 加载并参数化
+prompt = load_prompt(
+    SYSTEM_PROMPT_BASE,
+    skills_context="<skill list>",
+    graph_db_instruction="<db guide>",
+    skill_execution_reminder=""
+)
+```
+
+
+优势：
+- **内容与代码分离**：修改 AI 行为无需改代码
+- **参数化**：使用 `{placeholder}` 语法
+- **版本控制友好**：Markdown 文件易于 diff
+
+### 4. Windows 编码支持
+
+自动处理 Windows/PowerShell 的编码问题：
+
+```python
+# models/skill.py 中自动注入
+if sys.platform == "win32":
+    run_env["PYTHONIOENCODING"] = "utf-8"
+    run_env["PYTHONUTF8"] = "1"
+
+# subprocess 调用
+subprocess.run(
+    cmd,
+    encoding='utf-8',
+    errors='replace'  # 防止 UnicodeDecodeError
+)
+```
+
 
 ---
 
@@ -402,219 +441,120 @@ Bye!
 
 ```
 workflow-svc/
-├── skill_executor.py          # 主入口文件
-├── models/                    # 数据模型层
-│   ├── skill.py              # Skill, SkillScript 数据模型
-├── loaders/                   # 加载器层
-│   └── skill_loader.py       # SkillLoader - 解析 YAML、加载脚本
-├── llm/                       # LLM 适配器层
-│   ├── base.py               # LLMAdapter 抽象基类
-│   ├── openai.py             # OpenAI 适配器
-│   ├── anthropic.py          # Anthropic 适配器
-│   └── factory.py            # 工厂函数
-├── tools/                     # 工具定义层
-│   └── definitions.py        # 可执行工具的定义
-├── executor/                  # 执行器层
-│   └── skill_executor.py     # 核心调度和执行逻辑
-├── tests/                     # 单元测试
-│   ├── conftest.py           # 测试配置
-│   ├── models/               # models 层测试
-│   ├── loaders/              # loaders 层测试
-│   ├── llm/                  # llm 层测试
-│   ├── tools/                # tools 层测试
-│   └── executor/             # executor 层测试
-├── ARCHITECTURE.md            # 架构设计文档
-├── TESTING.md                 # 测试指南
-└── README.md                  # 项目文档
+├── skill_executor_main.py      # 主入口
+├── config.yaml                  # 配置文件
+├── requirements.txt             # Python 依赖
+│
+├── prompts/                     # AI 提示词模板
+│   ├── system_prompt_base.md
+│   ├── graph_db_instruction.md
+│   ├── skill_creation_workflow.md
+│   ├── skill_execution_reminder.md
+│   ├── no_skill_fallback.md
+│   └── prompt_loader.py
+│
+├── connectors/                  # 外部连接器
+│   └── graph_connector.py       # 图数据库 HTTP 客户端
+│
+├── executor/                    # 执行引擎
+│   ├── skill_executor.py        # 核心调度逻辑
+│   └── security.py              # 安全审计
+│
+├── llm/                         # LLM 适配器
+│   ├── openai.py                # OpenAI/DeepSeek
+│   └── anthropic.py             # Anthropic Claude
+│
+├── tools/                       # 工具定义
+│   ├── definitions.py           # Skill 工具
+│   └── graph_tools.py           # 图数据库工具
+│
+├── models/                      # 数据模型
+│   └── skill.py                 # Skill, SkillScript
+│
+├── loaders/                     # 加载器
+│   └── skill_loader.py          # 解析 SKILL.md
+│
+├── skills/                      # Skills 仓库
+│   ├── skill-creator/           # Skill 创建工具
+│   ├── file-operations/         # 文件操作
+│   └── ...
+│
+└── tests/                       # 单元测试
+    ├── unit/
+    └── integration/
 ```
 
-详细的架构设计请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ---
 
-## ⚙️ 配置选项
+##⚙️ 配置说明
 
-### 命令行参数
+### 完整配置示例
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `query` | 自然语言问题 | - |
-| `--skills-dir` | Skills 目录路径 | `./skills` |
-| `--provider` | LLM 提供商 | `openai` |
-| `--model` | 模型名称 | 提供商默认 |
-| `--list` | 列出所有 Skills | - |
-| `--verbose, -v` | 详细输出 | - |
-| `--interactive, -i` | 交互模式 | - |
+```yaml
+# LLM 配置
+provider: openai
+model: deepseek-chat
+base_url: https://api.deepseek.com
+api_key: sk-xxx
 
-### 支持的 LLM 提供商
+# Skills 目录
+skills_dir: ./skills
 
-| 提供商 | 模型示例 | 环境变量 |
-|--------|----------|----------|
-| OpenAI | `gpt-4o`, `gpt-4-turbo` | `OPENAI_API_KEY` |
-| Anthropic | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` | `ANTHROPIC_API_KEY` |
+# 详细输出
+verbose: false
+
+# 图数据库配置
+graph_database:
+  enabled: true
+  base_url: http://localhost:8080
+  timeout: 30
+  cache_enabled: true
+
+# 安全配置
+security:
+  audit_log: null  # 或 ./audit.log
+  audit_level: basic
+  audit_console: false
+  max_execution_time: 300
+  allowed_paths: []
+```
+
+
+### 命令行参数优先级
+
+```
+命令行参数 > config.yaml > 默认值
+```
+
 
 ---
 
-## 🛠️ 可用工具 (Tools)
+## 🧪 测试
 
-Skill Executor 为 LLM 提供了三个内置工具：
+### 运行测试
 
-### 1. `execute_skill_script`
+```shell script
+# 所有测试
+pytest
 
-执行 Skill 中的脚本。
+# 特定模块
+pytest tests/unit/prompts/
+pytest tests/unit/connectors/
+pytest tests/integration/
 
-```json
-{
-  "skill_name": "skill-creator",
-  "script_name": "init_skill",
-  "arguments": ["my-skill", "--path", "./skills"]
-}
+# 覆盖率报告
+pytest --cov=. --cov-report=html
 ```
 
-### 2. `list_skill_scripts`
 
-列出 Skill 中所有可用的脚本。
+### 测试覆盖
 
-```json
-{
-  "skill_name": "nano-pdf"
-}
-```
-
-### 3. `read_script_content`
-
-读取脚本的源代码内容。
-
-```json
-{
-  "skill_name": "skill-creator",
-  "script_name": "quick_validate"
-}
-```
+- ✅ Prompt 加载和参数化
+- ✅ 图数据库连接器
+- ✅ LLM 适配器
+- ✅ Skill 加载器
+- ✅ 安全审计
+- ✅ 工具定义
 
 ---
-
-## 📁 Skill 结构规范
-
-### SKILL.md 格式
-
-```markdown
----
-name: my-skill
-description: 这是一个示例 skill，用于演示结构
-license: MIT
-allowed-tools:
-  - bash
-  - read
-  - write
----
-
-# My Skill
-
-## Overview
-
-这个 skill 可以做什么...
-
-## Usage
-
-如何使用这个 skill...
-
-## Scripts
-
-### scripts/action.py
-
-执行某个操作的脚本...
-```
-
-### 目录结构
-
-```
-my-skill/
-├── SKILL.md              # 必须：主文档
-├── scripts/              # 可选：可执行脚本
-│   ├── action1.py
-│   └── action2.sh
-├── references/           # 可选：参考文档
-│   └── api_reference.md
-└── assets/               # 可选：资源文件
-    └── template.json
-```
-
----
-
-## 🔒 安全注意事项
-
-⚠️ **重要提示**：Skill Executor 会实际执行脚本，请注意以下安全事项：
-
-1. **审查脚本内容**：在执行前了解脚本做什么
-2. **限制权限**：使用受限用户运行
-3. **沙箱环境**：考虑在 Docker 容器中运行
-4. **信任来源**：只使用可信来源的 Skills
-
-```bash
-# 在 Docker 中运行（推荐）
-docker run -v ./skills:/skills skill-executor \
-    "执行某个任务" --skills-dir /skills
-```
-
----
-
-## 🔧 扩展开发
-
-### 添加新的 LLM 提供商
-
-```python
-class DeepSeekAdapter(LLMAdapter):
-    """DeepSeek API 适配器"""
-
-    def __init__(self, api_key: str | None = None, model: str = "deepseek-chat"):
-        from openai import OpenAI
-        self.client = OpenAI(
-            api_key=api_key or os.getenv("DEEPSEEK_API_KEY"),
-            base_url="https://api.deepseek.com"
-        )
-        self.model = model
-
-    def chat(self, messages: list[dict], tools: list[dict] | None = None, **kwargs) -> dict:
-        # 实现与 OpenAI 兼容的接口
-        ...
-
-# 注册到工厂
-providers["deepseek"] = DeepSeekAdapter
-```
-
-### 添加自定义工具
-
-```python
-def create_custom_tools() -> list[dict]:
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": "search_skills",
-                "description": "Search for skills by keyword",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "keyword": {"type": "string"}
-                    },
-                    "required": ["keyword"]
-                }
-            }
-        }
-    ]
-```
-
----
-
-## 📄 许可证
-
-MIT License
-
----
-
-## 🙏 致谢
-
-- [OpenClaw](https://github.com/openclaw/openclaw) - 灵感来源
-- [OpenAI](https://openai.com) - GPT 模型支持
-- [Anthropic](https://anthropic.com) - Claude 模型支持
