@@ -5,9 +5,11 @@ from pathlib import Path
 # 预定义的 prompt 名称
 SKILL_CREATION_WORKFLOW = "skill_creation_workflow"
 SYSTEM_PROMPT_BASE = "system_prompt_base"
+SYSTEM_PROMPT_DIRECT_QUERY = "system_prompt_direct_query"
 GRAPH_DB_INSTRUCTION = "graph_db_instruction"
 SKILL_EXECUTION_REMINDER = "skill_execution_reminder"
 NO_SKILL_FALLBACK = "no_skill_fallback"
+NO_SKILL_FALLBACK_DIRECT = "no_skill_fallback_direct"
 
 
 def load_prompt(prompt_name: str, **kwargs) -> str:

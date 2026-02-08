@@ -12,9 +12,11 @@ from prompts import (
     load_prompt,
     SKILL_CREATION_WORKFLOW,
     SYSTEM_PROMPT_BASE,
+    SYSTEM_PROMPT_DIRECT_QUERY,
     GRAPH_DB_INSTRUCTION,
     SKILL_EXECUTION_REMINDER,
-    NO_SKILL_FALLBACK
+    NO_SKILL_FALLBACK,
+    NO_SKILL_FALLBACK_DIRECT
 )
 from .security import SecurityConfig, Auditor
 
@@ -29,11 +31,13 @@ class SkillExecutor:
         security_config: SecurityConfig | None = None,
         auditor=None,
         graph_connector=None,  # 新增:图数据库连接器
-        skills_dir: Path | None = None
+        skills_dir: Path | None = None,
+        prompt_mode: str = "skill_creation"
     ):
         self.llm = llm
         self.skills = skills
         self.graph_connector = graph_connector  # 存储图连接器
+        self.prompt_mode = prompt_mode
 
         # 合并 skill 工具和图数据库工具
         skill_tools = create_tools_definition(skills)
@@ -99,6 +103,16 @@ class SkillExecutor:
             )
 
         missing_skill_instruction = self._get_missing_skill_instruction(has_skill_creator)
+
+        # 根据模式选择系统提示词
+        if self.prompt_mode == "direct_query":
+            system_prompt_template = SYSTEM_PROMPT_DIRECT_QUERY
+            missing_skill_instruction = load_prompt(NO_SKILL_FALLBACK_DIRECT)
+        else:
+            system_prompt_template = SYSTEM_PROMPT_BASE
+            missing_skill_instruction = self._get_missing_skill_instruction(has_skill_creator)
+
+        # 加载系统提示词
 
         system_prompt = load_prompt(
             SYSTEM_PROMPT_BASE,

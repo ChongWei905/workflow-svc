@@ -69,6 +69,9 @@ def load_config(config_file: str | None = None) -> dict:
         "provider": "openai",
         "model": None,
         "verbose": False,
+        "experiment": {  # 新增
+            "prompt_mode": "skill_creation"
+        },
         "graph_database": {  # 新增
             "enabled": False,
             "base_url": "http://localhost:8080",
@@ -234,8 +237,22 @@ def main():
         print(f"Error creating LLM: {e}")
         return 1
 
+    prompt_mode = config.get("experiment", {}).get("prompt_mode", "skill_creation")
+
     # 5. 创建执行器 (Executor 层) - 带安全配置
-    executor = SkillExecutor(llm, skills, security_config=security_config, graph_connector=graph_connector, skills_dir=skills_dir)
+    executor = SkillExecutor(
+        llm,
+        skills,
+        security_config=security_config,
+        graph_connector=graph_connector,
+        skills_dir=skills_dir,
+        prompt_mode=prompt_mode  # 传递模式参数
+    )
+
+    if prompt_mode == "direct_query":
+        print(f"🔬 Experiment Mode: DIRECT QUERY (No skill creation)")
+    else:
+        print(f"🛠️  Standard Mode: SKILL CREATION ENABLED")
 
     # 6. 交互模式
     if args.interactive:
