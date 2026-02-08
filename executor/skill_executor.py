@@ -8,7 +8,14 @@ from llm import LLMAdapter
 from loaders import SkillLoader
 from models import Skill
 from tools import create_tools_definition, create_graph_tools
-from prompts import load_prompt, SKILL_CREATION_WORKFLOW
+from prompts import (
+    load_prompt,
+    SKILL_CREATION_WORKFLOW,
+    SYSTEM_PROMPT_BASE,
+    GRAPH_DB_INSTRUCTION,
+    SKILL_EXECUTION_REMINDER,
+    NO_SKILL_FALLBACK
+)
 from .security import SecurityConfig, Auditor
 
 
@@ -80,120 +87,26 @@ class SkillExecutor:
         # 构建图数据库说明
         graph_db_instruction = ""
         if has_graph_db:
-            graph_db_instruction = """
-
-## Graph Database Access
-
-You have access to a graph database with the following tools:
-
-**Discovery Tools:**
-- `graph_get_object_types()`: Get all entity types (nodes) and relationship types
-- `graph_get_object_relations()`: Get all relationship patterns
-- `graph_get_entity_schema(entity_type)`: Get schema for a specific entity type
-- `graph_query_examples(entity_type, limit)`: Get example instances
-
-**Query Tools:**
-- `graph_property_filter(...)`: Filter entities by properties
-- `graph_property_info(...)`: Get detailed info for a specific entity
-- `graph_hop_search(...)`: Find multi-hop relationships
-- `graph_count_search(...)`: Count matching entities
-
-**⚠️ CRITICAL: When to Use Graph Database**
-
-**USE graph database ONLY in these scenarios:**
-1. **Before creating new skills**: Query schema and examples to understand data structure
-2. **When skills explicitly require graph data as INPUT**: If a skill's script needs graph information to work
-
-**❌ NEVER use graph database:**
-1. **After skill execution fails or returns "no data"**: Skills are authoritative
-2. **To "double-check" skill results**: Always trust the skill's output
-3. **When skill explicitly says "no data found"**: This is the final answer
-
-**✅ TRUST SKILLS COMPLETELY**
-- If a skill returns "no data found" or "database empty" → Tell user honestly: "Unable to retrieve the answer"
-- If a skill fails with clear error → Report the error, don't try alternative approaches
-- Skills have direct database access and are more reliable than your graph queries
-
-**Example - CORRECT behavior:**
-User: "Query fund information for XYZ"
-Skill output: "No fund found with name XYZ in database"
-Your response: "I checked the database but found no fund named XYZ. The database currently has no matching records."
-
-**Example - WRONG behavior:**
-User: "Query fund information for XYZ"  
-Skill output: "No fund found with name XYZ"
-You: "Let me try querying the graph database..." ❌ DON'T DO THIS!
-"""
+            graph_db_instruction = load_prompt(GRAPH_DB_INSTRUCTION)
 
         # 新增：如果刚刚创建并重载了新的 skill，添加特殊指引
         skill_execution_reminder = ""
         if self.just_created_skill and self.original_user_intent:
-            skill_execution_reminder = f"""
+            skill_execution_reminder = load_prompt(
+                SKILL_EXECUTION_REMINDER,
+                skill_name=self.just_created_skill,
+                original_intent=self.original_user_intent
+            )
 
-## 🎯 IMPORTANT: Skill Just Created!
+        missing_skill_instruction = self._get_missing_skill_instruction(has_skill_creator)
 
-You just created and loaded a new skill: **{self.just_created_skill}**
-
-**Original user request was:** "{self.original_user_intent}"
-
-**ACTION REQUIRED:**
-1. **Ask the user** if they want to execute this new skill to solve their original problem
-2. **If user agrees**, use `execute_skill_script` to run the appropriate script from the new skill
-3. **If user declines**, just acknowledge and wait for their next request
-
-**Example response:**
-"✅ The skill '{self.just_created_skill}' has been successfully created and loaded!
-
-Would you like me to execute it now to complete your original request: '{self.original_user_intent}'?"
-"""
-
-        system_prompt = f"""You are an AI assistant with access to skills and their scripts.
-
-## Available Skills (Metadata)
-{skills_context}
-{graph_db_instruction}
-{skill_execution_reminder}
-
-## ⚠️ CRITICAL: SKILL.md Format Requirements
-
-When creating a new skill, the SKILL.md file MUST start with YAML frontmatter:
-```markdown
----
-name: skill-name
-description: Brief description (max 1024 chars)
----
-
-# Skill Name
-
-## Overview
-...
-```
-
-## Progressive Disclosure
-Skills are loaded progressively to optimize context:
-1. Use `read_skill_content` tool to read the full SKILL.md when needed (Level 2)
-2. Use `execute_skill_script` to run scripts when needed (Level 3)
-3. Script source code is NOT injected into context, only output is returned
-
-## IMPORTANT - Action Required!
-When users ask you to DO something (not just explain), you MUST execute the appropriate script:
-
-- If user asks to list/read files → execute list_files or read_file script
-- If user asks to check system info → execute check_resources, list_processes, or disk_usage script
-- If user asks about web/HTTP → execute http_request or check_url script
-- If user asks to create/delete files → execute appropriate script
-
-## What to do when NO MATCHING SKILL exists:
-{self._get_missing_skill_instruction(has_skill_creator)}
-
-## Instructions
-1. When user asks to PERFORM AN ACTION, use execute_skill_script to run the appropriate script
-2. Read the skill content first if you need to understand what scripts are available
-3. Scripts are real code that WILL be executed - they will actually perform the requested operations
-4. After getting script output, interpret and present the results clearly to the user
-5. If a script fails, explain the error and suggest alternatives
-6. NEVER just describe what would happen - ALWAYS execute the script to actually do it
-"""
+        system_prompt = load_prompt(
+            SYSTEM_PROMPT_BASE,
+            skills_context=skills_context,
+            graph_db_instruction=graph_db_instruction,
+            skill_execution_reminder=skill_execution_reminder,
+            missing_skill_instruction=missing_skill_instruction
+        )
 
         # 如果是记住上下文模式,使用会话历史
         if remember_context:
@@ -326,22 +239,7 @@ When users ask you to DO something (not just explain), you MUST execute the appr
         if has_skill_creator:
             return load_prompt(SKILL_CREATION_WORKFLOW)
         else:
-            return """**If the user's request requires functionality that NONE of the available skills provide:**
-
-    1. **Tell the user** that no matching skill exists
-    2. **Explain** what kind of skill would be needed
-    3. **Suggest** that they can create a new skill manually or install the 'skill-creator' skill
-    4. **DO NOT** just give a theoretical answer - be honest that you cannot perform the action
-
-    **Example:**
-    User: "Check my PostgreSQL database connection"
-    You: "I don't have a skill for PostgreSQL operations. To perform this action, you would need to:
-    1. Create a new skill (e.g., 'postgres-tools')
-    2. Add a script that can connect to PostgreSQL
-    3. I can then execute it for you.
-
-    Note: Installing the 'skill-creator' skill would allow me to help you create new skills automatically."
-    """
+            return load_prompt(NO_SKILL_FALLBACK)
 
     def _handle_tool_call(self, name: str, args: dict, verbose: bool = False) -> str:
         """处理工具调用"""
